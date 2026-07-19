@@ -8,7 +8,6 @@ A Windows desktop application for generating signed/encrypted file checksums and
 
 - **Builder (开发者端)** — 递归扫描文件夹 / 过滤文件 / 多线程计算哈希 / 数字签名与 AES 加密 / 打包为独立 EXE
 - **Verifier (客户端)** — 自校验 EXE / 自动定位目标路径 / 完整性验证 / 结果导出
-- **Dark theme** — Mastercard 风格深色界面
 - **Anti-tamper** — 加密自校验 + 签名验证 + 反调试/反沙箱检测
 
 ## Quick Start | 快速开始
