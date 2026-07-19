@@ -1,0 +1,45 @@
+# Build output
+output/
+*.exe
+*.spec
+build/
+dist/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+*.manifest
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Project files (user data)
+*.fvp
+*.signed
+
+# Auto-generated embedded data
+verifier/_embedded_data.py
+
+# OS
+Thumbs.db
+.DS_Store
+Desktop.ini
+
+# Claude / AI assistant config
+.claude/
+
+# Temp
+*.tmp
+*.bak
+*.log
