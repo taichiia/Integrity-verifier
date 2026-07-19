@@ -1,5 +1,5 @@
 # 文件校驗分發工具 File Integrity Tool
-**A builder that can directly produce a self-contained verifier that verify everything with one click.
+** A builder that can directly produce a self-contained verifier that verify everything with one click.**
 **文件完整性验证工具** — 生成签名/加密的校验文件，并打包为独立的客户端验证器，双击即可一键验证所有内容。
 
 A Windows desktop application for generating signed/encrypted file checksums and packaging them into standalone verifier executables.
