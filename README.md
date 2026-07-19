@@ -1,4 +1,4 @@
-# File Integrity Tool (FIT)
+# 文件校驗分發工具 File Integrity Tool
 
 **文件完整性验证工具** — 生成签名/加密的校验文件，并打包为独立的客户端验证器。
 
