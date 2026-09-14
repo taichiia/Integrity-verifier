@@ -18,6 +18,35 @@ def generate_aes_key() -> bytes:
     return AESGCM.generate_key(bit_length=256)
 
 
+def derive_key_from_password(password: str, salt: bytes | None = None) -> tuple[bytes, bytes]:
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+    if salt is None:
+        salt = os.urandom(16)
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=200_000,
+    )
+    key = kdf.derive(password.encode("utf-8"))
+    return key, salt
+
+
+def encrypt_with_password(plaintext: bytes, password: str) -> bytes:
+    key, salt = derive_key_from_password(password)
+    nonce = os.urandom(12)
+    aesgcm = AESGCM(key)
+    ciphertext = aesgcm.encrypt(nonce, plaintext, None)
+    return salt + nonce + ciphertext
+
+
+def decrypt_with_password(payload: bytes, password: str) -> bytes:
+    salt, nonce, ciphertext = payload[:16], payload[16:28], payload[28:]
+    key, _ = derive_key_from_password(password, salt)
+    aesgcm = AESGCM(key)
+    return aesgcm.decrypt(nonce, ciphertext, None)
+
+
 def aes_encrypt(plaintext: bytes, key: bytes) -> bytes:
     nonce = os.urandom(12)
     aesgcm = AESGCM(key)

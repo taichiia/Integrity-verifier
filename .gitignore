@@ -43,3 +43,7 @@ Desktop.ini
 *.tmp
 *.bak
 *.log
+
+# Generated artifacts
+.coverage
+screenshot_*.png

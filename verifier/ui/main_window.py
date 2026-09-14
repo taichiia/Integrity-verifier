@@ -1,6 +1,5 @@
 import os
 import sys
-import subprocess
 from datetime import datetime
 from pathlib import Path
 
@@ -11,17 +10,16 @@ from PySide6.QtWidgets import (
     QHeaderView, QSplitter,
     QFileDialog, QMessageBox, QMenu, QComboBox, QFrame,
 )
-from PySide6.QtGui import QAction, QColor, QIcon
+from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QFont, QKeySequence
 
 from verifier.ui.theme import generate_verifier_stylesheet
+from shared.theme import set_theme_mode, get_theme_mode
 from shared.constants import (
-    CANVAS_CREAM, INK_BLACK, WHITE, SLATE_GRAY,
-    SUCCESS_GREEN, ERROR_RED, WARNING_AMBER, INFO_BLUE, DUST_TAUPE,
-    RADIUS_HERO, RADIUS_PILL, RADIUS_BUTTON,
-    SPACING_MD, SPACING_LG, FONT_H2_SIZE, FONT_H3_SIZE,
+    SLATE_GRAY, DUST_TAUPE,
+    SUCCESS_GREEN, ERROR_RED, WARNING_AMBER, INFO_BLUE,
+    SPACING_MD, SPACING_LG,
     FONT_BODY_SIZE, FONT_EYEBROW_SIZE, FONT_MONO_SIZE,
 )
-from shared.hashing import hash_batch
 
 
 class VerifierResultModel(QAbstractTableModel):
@@ -71,7 +69,8 @@ class VerifierResultModel(QAbstractTableModel):
                 "extra": QColor(INFO_BLUE),
                 "error": QColor(ERROR_RED),
             }
-            return colors.get(row["status"], QColor(INK_BLACK))
+            from shared.theme import get_palette
+            return colors.get(row["status"], QColor(get_palette()["text"]))
 
         if role == Qt.ItemDataRole.FontRole:
             if col == self.COL_PATH:
@@ -111,6 +110,36 @@ class VerifierResultModel(QAbstractTableModel):
         self.endResetModel()
 
 
+class ResultTableView(QTableView):
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        model = self.model()
+        if model is None or model.rowCount() > 0:
+            return
+        painter = QPainter(self.viewport())
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        rect = self.viewport().rect()
+        font = QFont(self.font())
+        font.setPointSize(FONT_BODY_SIZE + 1)
+        painter.setFont(font)
+        painter.setPen(QColor(SLATE_GRAY))
+        painter.drawText(
+            rect.adjusted(0, -20, 0, -20),
+            Qt.AlignmentFlag.AlignCenter,
+            "尚无验证结果",
+        )
+        hint_font = QFont(self.font())
+        hint_font.setPointSize(FONT_BODY_SIZE - 1)
+        painter.setFont(hint_font)
+        painter.setPen(QColor(DUST_TAUPE))
+        painter.drawText(
+            rect.adjusted(0, 16, 0, 16),
+            Qt.AlignmentFlag.AlignCenter,
+            "点击左侧「开始验证」检查文件完整性",
+        )
+        painter.end()
+
+
 class VerifierMainWindow(QMainWindow):
     def __init__(self, embedded_config: dict | None = None, parent=None):
         super().__init__(parent)
@@ -132,6 +161,13 @@ class VerifierMainWindow(QMainWindow):
             self._start_verification()
 
     def _setup_ui(self):
+        view_menu = self.menuBar().addMenu("查看(&V)")
+        theme_action = QAction("切换深色 / 浅色模式(&M)", self)
+        theme_action.setShortcut(QKeySequence("Ctrl+Shift+D"))
+        theme_action.setToolTip("在深色与浅色主题之间切换")
+        theme_action.triggered.connect(self._toggle_theme)
+        view_menu.addAction(theme_action)
+
         central = QWidget()
         self.setCentralWidget(central)
 
@@ -147,7 +183,7 @@ class VerifierMainWindow(QMainWindow):
         title_row.addStretch()
 
         checklist_label = QLabel("校验清单:")
-        checklist_label.setStyleSheet(f"color: {SLATE_GRAY}; font-size: {FONT_EYEBROW_SIZE}px;")
+        checklist_label.setProperty("cssClass", "hint")
         checklist_label.setToolTip("选择要使用的校验清单（如项目中配置了多套清单）")
         title_row.addWidget(checklist_label)
         self._checklist_combo = QComboBox()
@@ -160,14 +196,7 @@ class VerifierMainWindow(QMainWindow):
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
         left = QFrame()
-        left.setStyleSheet(f"""
-            QFrame {{
-                background-color: {WHITE};
-                border: 1px solid {DUST_TAUPE};
-                border-radius: {RADIUS_HERO}px;
-                padding: {SPACING_MD}px;
-            }}
-        """)
+        left.setProperty("cssClass", "panel")
         left.setMinimumWidth(250)
         left_layout = QVBoxLayout(left)
         left_layout.setContentsMargins(SPACING_MD, SPACING_MD, SPACING_MD, SPACING_MD)
@@ -200,12 +229,12 @@ class VerifierMainWindow(QMainWindow):
         left_layout.addWidget(self._progress)
 
         self._current_label = QLabel("就绪")
-        self._current_label.setStyleSheet(f"color: {SLATE_GRAY}; font-size: {FONT_EYEBROW_SIZE}px;")
+        self._current_label.setProperty("cssClass", "hint")
         self._current_label.setToolTip("当前正在验证的文件名")
         left_layout.addWidget(self._current_label)
 
         self._speed_label = QLabel("")
-        self._speed_label.setStyleSheet(f"color: {SLATE_GRAY}; font-size: {FONT_EYEBROW_SIZE}px;")
+        self._speed_label.setProperty("cssClass", "hint")
         self._speed_label.setToolTip("验证速度（文件数/秒）")
         left_layout.addWidget(self._speed_label)
 
@@ -246,7 +275,7 @@ class VerifierMainWindow(QMainWindow):
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(SPACING_MD)
 
-        self._result_table = QTableView()
+        self._result_table = ResultTableView()
         self._result_model = VerifierResultModel()
         self._result_table.setModel(self._result_model)
         self._result_table.setSelectionBehavior(self._result_table.SelectionBehavior.SelectRows)
@@ -283,22 +312,22 @@ class VerifierMainWindow(QMainWindow):
         bottom = QHBoxLayout()
 
         self._passed_label = QLabel("通过: 0")
-        self._passed_label.setStyleSheet(f"color: {SUCCESS_GREEN}; font-weight: 700; font-size: {FONT_BODY_SIZE}px;")
+        self._passed_label.setProperty("cssClass", "stat-ok")
         self._passed_label.setToolTip("哈希值与记录完全一致的文件数")
         bottom.addWidget(self._passed_label)
 
         self._failed_label = QLabel("失败: 0")
-        self._failed_label.setStyleSheet(f"color: {ERROR_RED}; font-weight: 700; font-size: {FONT_BODY_SIZE}px;")
+        self._failed_label.setProperty("cssClass", "stat-err")
         self._failed_label.setToolTip("哈希值与记录不匹配的文件数。这些文件可能已被修改或损坏")
         bottom.addWidget(self._failed_label)
 
         self._missing_label = QLabel("缺失: 0")
-        self._missing_label.setStyleSheet(f"color: {WARNING_AMBER}; font-weight: 700; font-size: {FONT_BODY_SIZE}px;")
+        self._missing_label.setProperty("cssClass", "stat-warn")
         self._missing_label.setToolTip("在校验清单中存在但在目标目录中找不到的文件数")
         bottom.addWidget(self._missing_label)
 
         self._extra_label = QLabel("多余: 0")
-        self._extra_label.setStyleSheet(f"color: {INFO_BLUE}; font-weight: 700; font-size: {FONT_BODY_SIZE}px;")
+        self._extra_label.setProperty("cssClass", "stat-info")
         self._extra_label.setToolTip("在目标目录中存在但不在校验清单中的文件数")
         bottom.addWidget(self._extra_label)
 
@@ -391,9 +420,15 @@ class VerifierMainWindow(QMainWindow):
             os.path.normpath(os.path.join(target, e["path"])).lower()
             for e in entries
         )
+        # A frozen verifier usually sits beside the target files; never flag itself as extra.
+        self_exe = ""
+        if getattr(sys, "frozen", False):
+            self_exe = os.path.normcase(os.path.abspath(sys.executable))
         for root, _, files in os.walk(target):
             for f in files:
                 full = os.path.join(root, f)
+                if self_exe and os.path.normcase(os.path.abspath(full)) == self_exe:
+                    continue
                 if os.path.normpath(full).lower() not in manifest_paths:
                     try:
                         rel = os.path.relpath(full, target)
@@ -411,7 +446,7 @@ class VerifierMainWindow(QMainWindow):
             self._on_verify_done()
             return
 
-        from builder.ui.workers.hash_worker import HashWorker
+        from shared.hash_worker import HashWorker
         self._worker = HashWorker(paths_to_hash, algorithm)
         self._worker.progress.connect(self._on_verify_progress)
         self._worker.file_done.connect(
@@ -449,6 +484,7 @@ class VerifierMainWindow(QMainWindow):
         })
 
     def _on_verify_done(self):
+        self._worker = None
         self._start_btn.setEnabled(True)
         self._stop_btn.setEnabled(False)
         self._progress.setValue(100)
@@ -524,7 +560,8 @@ class VerifierMainWindow(QMainWindow):
             target = self._target_path.text().strip()
             full = os.path.join(target, str(path))
             if os.path.exists(full):
-                os.system(f'explorer /select,"{full}"')
+                import subprocess
+                subprocess.Popen(["explorer", f"/select,{full}"])
 
     def _export_report(self):
         if not self._all_results:
@@ -575,4 +612,10 @@ class VerifierMainWindow(QMainWindow):
             )
         else:
             QMessageBox.information(self, "无失败项", "没有验证失败的文件。")
+
+    def _toggle_theme(self):
+        new_mode = "dark" if get_theme_mode() == "light" else "light"
+        set_theme_mode(new_mode)
+        self.setStyleSheet(generate_verifier_stylesheet(new_mode))
+        self.update()
 

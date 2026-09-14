@@ -2,6 +2,7 @@ import os
 import sys
 import subprocess
 import shutil
+import tempfile
 
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -14,31 +15,32 @@ def ensure_dir(path: str):
 
 
 def build_exe(entry_point: str, name: str, icon_path: str = ""):
-    cmd = [
-        sys.executable, "-m", "PyInstaller",
-        "--onefile",
-        "--noconsole",
-        "--clean",
-        "--name", name,
-        "--distpath", OUTPUT,
-        "--workpath", os.path.join(OUTPUT, ".build_temp"),
-        "--specpath", os.path.join(OUTPUT, ".specs"),
-        entry_point,
-    ]
+    with tempfile.TemporaryDirectory(prefix="fit_build_") as build_tmp:
+        cmd = [
+            sys.executable, "-m", "PyInstaller",
+            "--onefile",
+            "--noconsole",
+            "--clean",
+            "--name", name,
+            "--distpath", OUTPUT,
+            "--workpath", os.path.join(build_tmp, "build"),
+            "--specpath", os.path.join(build_tmp, "spec"),
+            entry_point,
+        ]
 
-    if icon_path and os.path.isfile(icon_path):
-        cmd.insert(4, f"--icon={icon_path}")
+        if icon_path and os.path.isfile(icon_path):
+            cmd.insert(4, f"--icon={icon_path}")
 
-    if os.path.isdir(SHARED_DIR):
-        cmd.insert(4, f"--add-data={SHARED_DIR}{os.pathsep}shared")
+        if os.path.isdir(SHARED_DIR):
+            cmd.insert(4, f"--add-data={SHARED_DIR}{os.pathsep}shared")
 
-    print(f"  Building {name}...")
-    print(f"  Command: {' '.join(cmd)}")
+        print(f"  Building {name}...")
+        print(f"  Command: {' '.join(cmd)}")
 
-    result = subprocess.run(
-        cmd, cwd=ROOT,
-        capture_output=True, text=True,
-    )
+        result = subprocess.run(
+            cmd, cwd=ROOT,
+            capture_output=True, text=True,
+        )
 
     if result.returncode != 0:
         print(f"  ERROR: PyInstaller failed for {name} (code {result.returncode})")

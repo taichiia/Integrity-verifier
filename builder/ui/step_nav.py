@@ -2,10 +2,8 @@ from PySide6.QtCore import Qt, Signal, QRect
 from PySide6.QtGui import QPainter, QPen, QBrush, QFont, QColor, QPainterPath
 from PySide6.QtWidgets import QWidget, QSizePolicy
 
-from shared.constants import (
-    INK_BLACK, CANVAS_CREAM, WHITE, SLATE_GRAY, DUST_TAUPE, SIGNAL_ORANGE,
-    FONT_FAMILY, RADIUS_PILL,
-)
+from shared.constants import FONT_FAMILY
+from shared.theme import get_palette
 
 TAB_WIDTH = 180
 TAB_HEIGHT = 44
@@ -24,6 +22,7 @@ class StepNav(QWidget):
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self._current = 0
         self._completed: set[int] = set()
+        self._prerequisite: dict[int, set[int]] = {1: {0}, 2: {1}}
         self.setMouseTracking(True)
 
     def set_current(self, index: int):
@@ -43,6 +42,13 @@ class StepNav(QWidget):
     def paintEvent(self, event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        pal = get_palette()
+        primary = pal["primary"]
+        accent_hover = pal["accent_hover"]
+        text_color_token = pal["text"]
+        surface = pal["surface"]
+        secondary = pal["secondary"]
+        border = pal["border"]
 
         total_w = len(self.STEPS) * TAB_WIDTH + (len(self.STEPS) - 1) * 8
         start_x = (self.width() - total_w) // 2
@@ -58,22 +64,22 @@ class StepNav(QWidget):
             path.addRoundedRect(rect, TAB_HEIGHT // 2, TAB_HEIGHT // 2)
 
             if active:
-                p.setBrush(QBrush(QColor(INK_BLACK)))
+                p.setBrush(QBrush(QColor(primary)))
                 p.setPen(Qt.PenStyle.NoPen)
                 p.drawPath(path)
-                text_color = QColor(CANVAS_CREAM)
+                text_color = QColor("#FFFFFF")
                 weight = QFont.Weight.Bold
             elif completed:
-                p.setBrush(QBrush(QColor("#4A4A48")))
+                p.setBrush(QBrush(QColor(accent_hover)))
                 p.setPen(Qt.PenStyle.NoPen)
                 p.drawPath(path)
-                text_color = QColor(INK_BLACK)
+                text_color = QColor("#FFFFFF")
                 weight = QFont.Weight.Medium
             else:
-                p.setBrush(QBrush(QColor(WHITE)))
-                p.setPen(QPen(QColor(DUST_TAUPE), 1.5))
+                p.setBrush(QBrush(QColor(surface)))
+                p.setPen(QPen(QColor(border), 1.5))
                 p.drawPath(path)
-                text_color = QColor(SLATE_GRAY)
+                text_color = QColor(secondary)
                 weight = QFont.Weight.Normal
 
             label = self.STEPS[i]
@@ -100,6 +106,9 @@ class StepNav(QWidget):
             for i in range(3):
                 tab_x = start_x + i * (TAB_WIDTH + 8)
                 if tab_x <= x <= tab_x + TAB_WIDTH:
+                    required = self._prerequisite.get(i, set())
+                    if not required.issubset(self._completed) and i != self._current:
+                        return
                     self.step_changed.emit(i)
                     return
 

@@ -16,12 +16,7 @@ from shared.crypto import (
 )
 from builder.ui.widgets.progress_panel import ProgressPanel
 from builder.ui.workers.hash_worker import HashWorker
-from shared.constants import (
-    SPACING_MD, SPACING_LG, SPACING_XL, SPACING_SM,
-    FONT_H3_SIZE, FONT_BODY_SIZE, FONT_EYEBROW_SIZE,
-    DUST_TAUPE, RADIUS_HERO, RADIUS_BUTTON,
-    INK_BLACK, SLATE_GRAY, LIFTED_CREAM, SIGNAL_ORANGE,
-)
+from shared.constants import SPACING_MD, SPACING_LG, SPACING_XL, SPACING_SM
 
 
 class Step2Hashes(QWidget):
@@ -39,13 +34,7 @@ class Step2Hashes(QWidget):
 
         config = QFrame()
         config.setObjectName("configBar")
-        config.setStyleSheet(f"""
-                background-color: {LIFTED_CREAM};
-                border: 1px solid {DUST_TAUPE};
-                border-radius: {RADIUS_HERO}px;
-                padding: {SPACING_MD}px;
-            }}
-        """)
+        config.setProperty("cssClass", "panel")
         config_layout = QHBoxLayout(config)
         config_layout.setContentsMargins(SPACING_MD, SPACING_MD, SPACING_MD, SPACING_MD)
         config_layout.setSpacing(SPACING_MD)
@@ -73,8 +62,8 @@ class Step2Hashes(QWidget):
         out_label.setToolTip("校验文件的输出路径")
         config_layout.addWidget(out_label)
         self._out_path = QLineEdit()
-        self._out_path.setPlaceholderText("输出路径...")
-        self._out_path.setToolTip("生成的校验文件 (.csv/.sfv) 的保存位置")
+        self._out_path.setPlaceholderText("例如 D:\\release\\integrity.csv ...")
+        self._out_path.setToolTip("生成的校验文件 (.csv/.sfv) 的保存位置。\n留空则计算完成后手动选择保存位置")
         config_layout.addWidget(self._out_path, 1)
 
         browse_btn = QPushButton("浏览...")
@@ -158,10 +147,7 @@ class Step2Hashes(QWidget):
         left_layout.setSpacing(SPACING_SM)
 
         left_title = QLabel("• 文件清单预览")
-        left_title.setStyleSheet(
-            f"font-size: 13px; font-weight: 700; color: {INK_BLACK}; "
-            f"text-transform: uppercase; letter-spacing: 0.5px;"
-        )
+        left_title.setProperty("cssClass", "section-title")
         left_title.setToolTip("待校验的文件清单。路径基于根目录。OK=已计算 PEND=待更新 ERR=错误")
         left_layout.addWidget(left_title)
 
@@ -178,10 +164,7 @@ class Step2Hashes(QWidget):
         right_layout.setSpacing(SPACING_SM)
 
         right_title = QLabel("• 计算进度")
-        right_title.setStyleSheet(
-            f"font-size: 13px; font-weight: 700; color: {INK_BLACK}; "
-            f"text-transform: uppercase; letter-spacing: 0.5px;"
-        )
+        right_title.setProperty("cssClass", "section-title")
         right_title.setToolTip("实时显示哈希计算进度、速度和日志")
         right_layout.addWidget(right_title)
 
@@ -382,6 +365,7 @@ class Step2Hashes(QWidget):
 
     def _on_finished(self, results: list):
         self._is_running = False
+        self._worker = None
         self._start_btn.setEnabled(True)
         self._pause_btn.setEnabled(False)
 
@@ -389,6 +373,9 @@ class Step2Hashes(QWidget):
         err_count = sum(1 for e in self._checksum_entries if e["status"] == "error")
         self._progress_panel.log_success(f"完成: {ok_count:,} 文件已哈希, {err_count} 错误")
         self._update_manifest()
+
+        from builder.ui.widgets.toast import show_toast
+        show_toast(self, f"哈希计算完成: {ok_count:,} 文件已计算", level="success")
 
         out = self._out_path.text().strip()
         if out and ok_count > 0:
@@ -446,10 +433,8 @@ class Step2Hashes(QWidget):
 
             password = self._pwd_input.text()
             if password:
-                from shared.crypto import aes_encrypt
-                from hashlib import sha256
-                key = sha256(password.encode()).digest()
-                payload = aes_encrypt(payload, key)
+                from shared.crypto import encrypt_with_password
+                payload = encrypt_with_password(payload, password)
 
             signed_path = checksum_path + ".signed"
             with open(signed_path, "wb") as f:

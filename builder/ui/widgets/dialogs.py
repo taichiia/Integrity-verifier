@@ -5,10 +5,7 @@ from PySide6.QtWidgets import (
     QTextEdit, QRadioButton, QButtonGroup, QComboBox, QTableWidget,
     QTableWidgetItem, QHeaderView, QMessageBox, QAbstractItemView,
 )
-from shared.constants import (
-    INK_BLACK, CANVAS_CREAM, RADIUS_BUTTON, FONT_H3_SIZE,
-    SPACING_MD, SPACING_LG, SLATE_GRAY, FONT_EYEBROW_SIZE,
-)
+from shared.constants import SPACING_MD, SPACING_LG
 
 
 class ExternalTestDialog(QDialog):
@@ -127,7 +124,7 @@ class PackOptionsDialog(QDialog):
 
         desc = QLabel("设置输出路径和打包后行为。打包过程可能需要数分钟。")
         desc.setWordWrap(True)
-        desc.setStyleSheet(f"color: {SLATE_GRAY}; font-size: {FONT_EYEBROW_SIZE}px;")
+        desc.setProperty("cssClass", "hint")
         layout.addWidget(desc)
 
         out_layout = QHBoxLayout()
@@ -150,10 +147,6 @@ class PackOptionsDialog(QDialog):
         self._run_after.setToolTip("打包成功后立即启动验证器进行测试。建议首次打包时启用")
         layout.addWidget(self._run_after)
 
-        self._obfuscate = QCheckBox("启用代码混淆（如可用）")
-        self._obfuscate.setToolTip("使用 PyInstaller 的混淆选项增强反逆向保护。可能增加打包时间")
-        layout.addWidget(self._obfuscate)
-
         layout.addStretch()
 
         btn_layout = QHBoxLayout()
@@ -170,10 +163,7 @@ class PackOptionsDialog(QDialog):
         layout.addLayout(btn_layout)
 
     def _browse_out(self):
-        path, _ = QFileDialog.getSaveFileName(
-            self, "保存验证器", "verifier.exe",
-            "可执行文件 (*.exe);;所有文件 (*)"
-        )
+        path = QFileDialog.getExistingDirectory(self, "选择输出目录")
         if path:
             self._out_path.setText(path)
 
@@ -181,7 +171,6 @@ class PackOptionsDialog(QDialog):
         return {
             "output_path": self._out_path.text().strip(),
             "run_after": self._run_after.isChecked(),
-            "obfuscate": self._obfuscate.isChecked(),
         }
 
 
@@ -203,7 +192,7 @@ class ChecklistEditDialog(QDialog):
         layout.addWidget(title)
 
         info = QLabel(f"共 {len(self._entries)} 个文件条目")
-        info.setStyleSheet(f"color: {SLATE_GRAY}; font-size: {FONT_EYEBROW_SIZE}px;")
+        info.setProperty("cssClass", "hint")
         layout.addWidget(info)
 
         self._table = QTableWidget()

@@ -8,11 +8,7 @@ from PySide6.QtWidgets import (
 )
 
 from shared.project import ProjectData
-from shared.constants import (
-    SPACING_MD, SPACING_LG, SPACING_SM, FONT_H3_SIZE, FONT_BODY_SIZE, FONT_EYEBROW_SIZE,
-    LIFTED_CREAM, DUST_TAUPE, RADIUS_HERO, SLATE_GRAY, INK_BLACK,
-    SUCCESS_GREEN, WARNING_AMBER, SIGNAL_ORANGE,
-)
+from shared.constants import SPACING_MD, SPACING_LG, SPACING_SM
 from builder.ui.widgets.filter_panel import FilterPanel
 from builder.ui.widgets.file_table import FileTableView
 from builder.ui.workers.scan_worker import ScanWorker
@@ -33,13 +29,7 @@ class Step1Files(QWidget):
 
         dir_bar = QFrame()
         dir_bar.setObjectName("dirBar")
-        dir_bar.setStyleSheet(f"""
-                background-color: {LIFTED_CREAM};
-                border: 1px solid {DUST_TAUPE};
-                border-radius: {RADIUS_HERO}px;
-                padding: {SPACING_MD}px;
-            }}
-        """)
+        dir_bar.setProperty("cssClass", "panel")
         dir_layout = QVBoxLayout(dir_bar)
         dir_layout.setContentsMargins(SPACING_MD, SPACING_MD, SPACING_MD, SPACING_MD)
         dir_layout.setSpacing(SPACING_SM)
@@ -50,8 +40,7 @@ class Step1Files(QWidget):
         dir_layout.addWidget(dir_label)
 
         dir_hint = QLabel("选择要验证完整性的目标文件夹，系统将递归扫描所有文件")
-        dir_hint.setProperty("cssClass", "muted")
-        dir_hint.setStyleSheet(f"font-size: {FONT_EYEBROW_SIZE}px; color: {SLATE_GRAY};")
+        dir_hint.setProperty("cssClass", "hint")
         dir_layout.addWidget(dir_hint)
 
         dir_row = QHBoxLayout()
@@ -80,12 +69,7 @@ class Step1Files(QWidget):
 
         filter_frame = QFrame()
         filter_frame.setObjectName("filterFrame")
-        filter_frame.setStyleSheet(f"""
-                background-color: {LIFTED_CREAM};
-                border: 1px solid {DUST_TAUPE};
-                border-radius: {RADIUS_HERO}px;
-            }}
-        """)
+        filter_frame.setProperty("cssClass", "panel")
         filter_inner = QVBoxLayout(filter_frame)
         filter_inner.setContentsMargins(0, 0, 0, 0)
 
@@ -113,14 +97,7 @@ class Step1Files(QWidget):
         right_layout.addWidget(self._file_table, 1)
 
         stats_bar = QFrame()
-        stats_bar.setStyleSheet(f"""
-            QFrame {{
-                background-color: {LIFTED_CREAM};
-                border: 1px solid {DUST_TAUPE};
-                border-radius: 8px;
-                padding: 6px 12px;
-            }}
-        """)
+        stats_bar.setProperty("cssClass", "panel")
         stats_layout = QHBoxLayout(stats_bar)
         stats_layout.setContentsMargins(12, 6, 12, 6)
         stats_layout.setSpacing(SPACING_LG)
@@ -130,12 +107,11 @@ class Step1Files(QWidget):
         stats_layout.addWidget(self._total_label)
 
         self._filtered_label = QLabel("已过滤: 0")
-        self._filtered_label.setStyleSheet(f"color: {SIGNAL_ORANGE}; font-weight: 500;")
+        self._filtered_label.setProperty("cssClass", "accent")
         self._filtered_label.setToolTip("被过滤规则排除的文件数量")
         stats_layout.addWidget(self._filtered_label)
 
         self._selected_label = QLabel("已选: 0")
-        self._selected_label.setStyleSheet(f"color: {INK_BLACK}; font-weight: 500;")
         self._selected_label.setToolTip("当前勾选/将参与校验的文件数量")
         stats_layout.addWidget(self._selected_label)
 

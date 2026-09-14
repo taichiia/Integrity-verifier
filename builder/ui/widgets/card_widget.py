@@ -3,8 +3,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QFrame,
 )
 from shared.constants import (
-    LIFTED_CREAM, INK_BLACK, DUST_TAUPE, SIGNAL_ORANGE,
-    FONT_H3_SIZE, SPACING_MD, SPACING_LG, RADIUS_HERO,
+    SIGNAL_ORANGE, FONT_H3_SIZE, SPACING_MD, SPACING_LG,
 )
 
 
@@ -15,13 +14,7 @@ class CardWidget(QFrame):
         self._title = title
 
         self.setObjectName("CardWidget")
-        self.setStyleSheet(f"""
-                background-color: {LIFTED_CREAM};
-                border: 1px solid {DUST_TAUPE};
-                border-radius: {RADIUS_HERO}px;
-                padding: {SPACING_MD}px;
-            }}
-        """)
+        self.setProperty("cssClass", "panel")
 
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(SPACING_MD, SPACING_MD, SPACING_MD, SPACING_MD)
@@ -31,13 +24,12 @@ class CardWidget(QFrame):
         header.setContentsMargins(0, 0, 0, 0)
 
         dot = QLabel("•")
-        dot.setStyleSheet(f"color: {SIGNAL_ORANGE}; font-size: 16px; font-weight: 700;")
+        dot.setProperty("cssClass", "accent")
         dot.setFixedWidth(16)
         header.addWidget(dot)
 
         self._title_label = QLabel(title)
         self._title_label.setProperty("cssClass", "h3")
-        self._title_label.setStyleSheet(f"font-size: {FONT_H3_SIZE}px; font-weight: 500;")
         header.addWidget(self._title_label, 1)
 
         self._toggle_btn = QPushButton()

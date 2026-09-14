@@ -2,10 +2,12 @@ import os
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, Signal
-from PySide6.QtGui import QIcon, QAction
+from PySide6.QtGui import QIcon, QAction, QPainter, QColor, QFont
 from PySide6.QtWidgets import (
     QTableView, QHeaderView, QMenu, QAbstractItemView, QFileDialog,
 )
+from shared.constants import FONT_BODY_SIZE
+from shared.theme import get_palette
 
 
 class FileTableModel(QAbstractTableModel):
@@ -54,7 +56,8 @@ class FileTableModel(QAbstractTableModel):
 
     def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
         if role == Qt.ItemDataRole.CheckStateRole and index.column() == self.COL_CHECKED:
-            self._files[index.row()]["checked"] = (value == Qt.CheckState.Checked.value)
+            state = value if isinstance(value, Qt.CheckState) else Qt.CheckState(value)
+            self._files[index.row()]["checked"] = (state == Qt.CheckState.Checked)
             self.dataChanged.emit(index, index, [role])
             return True
         return False
@@ -168,6 +171,33 @@ class FileTableView(QTableView):
     def model(self) -> FileTableModel:
         return self._model
 
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if self._model.rowCount() == 0:
+            pal = get_palette()
+            painter = QPainter(self.viewport())
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            rect = self.viewport().rect()
+            font = QFont(self.font())
+            font.setPointSize(FONT_BODY_SIZE + 1)
+            painter.setFont(font)
+            painter.setPen(QColor(pal["secondary"]))
+            painter.drawText(
+                rect.adjusted(0, -20, 0, -20),
+                Qt.AlignmentFlag.AlignCenter,
+                "尚未选择源文件夹",
+            )
+            hint_font = QFont(self.font())
+            hint_font.setPointSize(FONT_BODY_SIZE - 1)
+            painter.setFont(hint_font)
+            painter.setPen(QColor(pal["border"]))
+            painter.drawText(
+                rect.adjusted(0, 16, 0, 16),
+                Qt.AlignmentFlag.AlignCenter,
+                "点击上方「浏览...」选择目录，或直接拖拽文件到此处",
+            )
+            painter.end()
+
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
@@ -236,6 +266,7 @@ class FileTableView(QTableView):
         for idx in self.selectedIndexes():
             if idx.column() == self._model.COL_PATH:
                 path = self._model._files[idx.row()]["path"]
-                os.system(f'explorer /select,"{path}"')
+                import subprocess
+                subprocess.Popen(["explorer", f"/select,{path}"])
                 break
 

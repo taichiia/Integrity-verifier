@@ -5,8 +5,7 @@ from PySide6.QtWidgets import (
     QButtonGroup, QFrame,
 )
 from shared.constants import (
-    INK_BLACK, SLATE_GRAY, SIGNAL_ORANGE, DUST_TAUPE, LIFTED_CREAM,
-    SPACING_SM, SPACING_MD, RADIUS_HERO,
+    SPACING_SM, SPACING_MD,
 )
 
 
@@ -21,10 +20,7 @@ class FilterPanel(QWidget):
         layout.setSpacing(SPACING_SM)
 
         title = QLabel("• 过滤规则")
-        title.setStyleSheet(
-            f"font-size: 13px; font-weight: 700; color: {INK_BLACK}; "
-            f"text-transform: uppercase; letter-spacing: 0.5px;"
-        )
+        title.setProperty("cssClass", "section-title")
         title.setToolTip("设置文件过滤规则，排除不需要校验的文件")
         layout.addWidget(title)
 
@@ -36,11 +32,11 @@ class FilterPanel(QWidget):
 
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet(f"color: {DUST_TAUPE};")
+        sep.setProperty("cssClass", "sep")
         layout.addWidget(sep)
 
         mode_label = QLabel("过滤模式")
-        mode_label.setStyleSheet(f"font-size: 11px; font-weight: 500; color: {SLATE_GRAY};")
+        mode_label.setProperty("cssClass", "hint")
         mode_label.setToolTip("黑名单：排除匹配的文件 | 白名单：仅保留匹配的文件")
         layout.addWidget(mode_label)
 
@@ -60,11 +56,11 @@ class FilterPanel(QWidget):
 
         sep2 = QFrame()
         sep2.setFrameShape(QFrame.Shape.HLine)
-        sep2.setStyleSheet(f"color: {DUST_TAUPE};")
+        sep2.setProperty("cssClass", "sep")
         layout.addWidget(sep2)
 
         ext_label = QLabel("扩展名")
-        ext_label.setStyleSheet(f"font-size: 11px; font-weight: 500; color: {SLATE_GRAY};")
+        ext_label.setProperty("cssClass", "hint")
         ext_label.setToolTip("按文件扩展名过滤。例：添加 .log 可排除所有日志文件")
         layout.addWidget(ext_label)
 
@@ -90,11 +86,11 @@ class FilterPanel(QWidget):
 
         sep3 = QFrame()
         sep3.setFrameShape(QFrame.Shape.HLine)
-        sep3.setStyleSheet(f"color: {DUST_TAUPE};")
+        sep3.setProperty("cssClass", "sep")
         layout.addWidget(sep3)
 
         folder_label = QLabel("文件夹名")
-        folder_label.setStyleSheet(f"font-size: 11px; font-weight: 500; color: {SLATE_GRAY};")
+        folder_label.setProperty("cssClass", "hint")
         folder_label.setToolTip("按父文件夹名过滤。例：添加 .git 可排除所有git仓库中的文件")
         layout.addWidget(folder_label)
 
@@ -118,11 +114,11 @@ class FilterPanel(QWidget):
 
         sep4 = QFrame()
         sep4.setFrameShape(QFrame.Shape.HLine)
-        sep4.setStyleSheet(f"color: {DUST_TAUPE};")
+        sep4.setProperty("cssClass", "sep")
         layout.addWidget(sep4)
 
         size_label = QLabel("文件大小")
-        size_label.setStyleSheet(f"font-size: 11px; font-weight: 500; color: {SLATE_GRAY};")
+        size_label.setProperty("cssClass", "hint")
         size_label.setToolTip("按文件大小过滤。设0表示不限制")
         layout.addWidget(size_label)
 

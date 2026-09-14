@@ -300,7 +300,7 @@ def _check_vm_processes() -> bool:
     ]
     try:
         output = subprocess.check_output(
-            "tasklist /FO CSV /NH", shell=True, timeout=5,
+            ["tasklist", "/FO", "CSV", "/NH"], timeout=5,
             creationflags=subprocess.CREATE_NO_WINDOW,
         ).decode("utf-8", errors="replace").lower()
         for proc in vm_procs:
@@ -328,8 +328,8 @@ def _check_disk_model() -> bool:
     try:
         import subprocess
         output = subprocess.check_output(
-            'wmic diskdrive get model /format:csv 2>nul',
-            shell=True, timeout=5,
+            ["wmic", "diskdrive", "get", "model", "/format:csv"],
+            timeout=5,
             creationflags=subprocess.CREATE_NO_WINDOW,
         ).decode("utf-8", errors="replace").lower()
         vm_indicators = ["virtual", "vmware", "vbox", "qemu", "xen", "hyper-v"]

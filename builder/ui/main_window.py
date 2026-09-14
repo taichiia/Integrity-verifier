@@ -11,6 +11,7 @@ from builder.ui.step1_files import Step1Files
 from builder.ui.step2_hashes import Step2Hashes
 from builder.ui.step3_pack import Step3Pack
 from builder.ui.theme import generate_builder_stylesheet
+from shared.theme import set_theme_mode, get_theme_mode
 from shared.project import ProjectData, save_project, load_project
 from shared.constants import (
     WINDOW_DEFAULT_WIDTH, WINDOW_DEFAULT_HEIGHT,
@@ -37,6 +38,12 @@ class BuilderMainWindow(QMainWindow):
         self._setup_status()
 
         self._step_nav.step_changed.connect(self._on_step_changed)
+
+        for i, key in enumerate(["Ctrl+1", "Ctrl+2", "Ctrl+3"]):
+            action = QAction(self)
+            action.setShortcut(QKeySequence(key))
+            action.triggered.connect(lambda checked=False, idx=i: self._on_step_changed(idx))
+            self.addAction(action)
 
     def _setup_menu(self):
         mb = self.menuBar()
@@ -78,7 +85,20 @@ class BuilderMainWindow(QMainWindow):
         ext_test_action.triggered.connect(self._external_test)
         tools_menu.addAction(ext_test_action)
 
+        view_menu = mb.addMenu("查看(&V)")
+        theme_action = QAction("切换深色 / 浅色模式(&M)", self)
+        theme_action.setShortcut(QKeySequence("Ctrl+Shift+D"))
+        theme_action.setToolTip("在深色与浅色主题之间切换")
+        theme_action.triggered.connect(self._toggle_theme)
+        view_menu.addAction(theme_action)
+
         help_menu = mb.addMenu("帮助(&H)")
+        guide_action = QAction("使用说明(&G)", self)
+        guide_action.setToolTip("查看完整的三步工作流程说明")
+        guide_action.triggered.connect(self._show_guide)
+        help_menu.addAction(guide_action)
+
+        help_menu.addSeparator()
         about_action = QAction("关于(&A)", self)
         about_action.setToolTip("查看软件版本与说明")
         about_action.triggered.connect(self._show_about)
@@ -110,7 +130,7 @@ class BuilderMainWindow(QMainWindow):
         self._status = QStatusBar()
         self.setStatusBar(self._status)
         self._status_label = QLabel("就绪")
-        self._status_label.setStyleSheet(f"color: {INK_BLACK}; padding: 4px 12px;")
+        self._status_label.setProperty("cssClass", "hint")
         self._status.addWidget(self._status_label, 1)
 
     def _on_step_changed(self, index: int):
@@ -181,6 +201,23 @@ class BuilderMainWindow(QMainWindow):
         dlg = ExternalTestDialog(self)
         dlg.exec()
 
+    def _show_guide(self):
+        QMessageBox.information(
+            self, "使用说明",
+            "三步完成文件完整性校验:\n\n"
+            "① 选择文件\n"
+            "   点击「浏览...」选择源文件夹，系统自动扫描。\n"
+            "   也可直接拖拽文件到列表中。勾选需要校验的文件。\n\n"
+            "② 生成校验文件\n"
+            "   点击「开始计算」生成哈希值（推荐 SHA256）。\n"
+            "   需要防篡改可展开「高级签名加密」，生成密钥对并签名。\n\n"
+            "③ 打包验证器\n"
+            "   先在「模拟验证」中选择目标目录并验证通过，\n"
+            "   然后点击「打包生成验证器」得到独立 EXE。\n"
+            "   将 EXE 与目标文件一起分发即可。\n\n"
+            "快捷键: Ctrl+1/2/3 切换步骤, Ctrl+N/O/S 新建/打开/保存项目"
+        )
+
     def _show_about(self):
         QMessageBox.about(
             self, "关于 — 文件完整性验证工具",
@@ -189,6 +226,13 @@ class BuilderMainWindow(QMainWindow):
             "并打包为独立的验证器可执行程序。\n\n"
             "好用的話請到https://github.com/taichiia/Integrity-verifier打個star吧"
         )
+
+    def _toggle_theme(self):
+        new_mode = "dark" if get_theme_mode() == "light" else "light"
+        set_theme_mode(new_mode)
+        self.setStyleSheet(generate_builder_stylesheet(new_mode))
+        self._step_nav.update()
+        self._status_label.setText(f"已切换到{'深色' if new_mode == 'dark' else '浅色'}模式")
 
     def _sync_project_from_steps(self):
         self._step1.sync_to_project()

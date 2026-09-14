@@ -46,6 +46,11 @@ class VerifyWorker(QThread):
                     if self._cancelled:
                         break
                     for f in files:
+                        # The packed verifier ignores itself, so the pre-pack
+                        # simulation must not count a verifier EXE as extra.
+                        if (root == self._target_dir
+                                and f.lower() == "fileintegrityverifier.exe"):
+                            continue
                         full = os.path.join(root, f)
                         try:
                             rel = os.path.relpath(full, self._target_dir).replace("\\", "/")

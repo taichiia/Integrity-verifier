@@ -8,23 +8,17 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QTextCharFormat, QColor, QFont
 
 from shared.constants import (
-    INK_BLACK, SLATE_GRAY, SUCCESS_GREEN, ERROR_RED, WARNING_AMBER,
-    SIGNAL_ORANGE, LIFTED_CREAM, DUST_TAUPE, WHITE, RADIUS_HERO,
-    SPACING_SM, SPACING_MD, SPACING_LG, FONT_BODY_SIZE, FONT_MONO_SIZE, FONT_EYEBROW_SIZE,
+    SUCCESS_GREEN, ERROR_RED, WARNING_AMBER,
+    SPACING_SM, SPACING_MD,
 )
+from shared.theme import get_palette
 
 
 class ProgressPanel(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("ProgressPanel")
-        self.setStyleSheet(f"""
-                background-color: {LIFTED_CREAM};
-                border: 1px solid {DUST_TAUPE};
-                border-radius: {RADIUS_HERO}px;
-                padding: {SPACING_MD}px;
-            }}
-        """)
+        self.setProperty("cssClass", "panel")
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(SPACING_MD, SPACING_MD, SPACING_MD, SPACING_MD)
@@ -42,13 +36,13 @@ class ProgressPanel(QFrame):
         layout.addWidget(self._progress)
 
         self._current_label = QLabel("等待中...")
-        self._current_label.setStyleSheet(f"color: {SLATE_GRAY}; font-size: {FONT_EYEBROW_SIZE}px;")
+        self._current_label.setProperty("cssClass", "hint")
         self._current_label.setWordWrap(True)
         self._current_label.setToolTip("当前正在计算哈希值的文件路径")
         layout.addWidget(self._current_label)
 
         self._speed_label = QLabel("")
-        self._speed_label.setStyleSheet(f"color: {SLATE_GRAY}; font-size: {FONT_EYEBROW_SIZE}px;")
+        self._speed_label.setProperty("cssClass", "hint")
         self._speed_label.setToolTip("计算速度（文件数/秒）。受磁盘I/O和CPU性能影响")
         layout.addWidget(self._speed_label)
 
@@ -61,20 +55,10 @@ class ProgressPanel(QFrame):
         self._log.setReadOnly(True)
         self._log.setMaximumBlockCount(1000)
         self._log.setToolTip(
-            "日志详情。白色=信息  黄色=警告  红色=错误  绿色=成功\n"
+            "日志详情。文本色=信息  黄色=警告  红色=错误  绿色=成功\n"
             "最多保留 1000 行，超出后自动清除旧记录"
         )
-        self._log.setStyleSheet(f"""
-            QPlainTextEdit {{
-                font-family: "Consolas", "JetBrains Mono", monospace;
-                font-size: {FONT_MONO_SIZE}px;
-                font-weight: 450;
-                background-color: {WHITE};
-                border: 1px solid {DUST_TAUPE};
-                border-radius: 8px;
-                padding: 8px;
-            }}
-        """)
+        self._log.setProperty("cssClass", "log")
         layout.addWidget(self._log, 1)
 
         btn_layout = QHBoxLayout()
@@ -93,7 +77,7 @@ class ProgressPanel(QFrame):
         self._speed_label.setText(f"速度: {files_per_sec:.1f} 文件/秒")
 
     def log_info(self, message: str):
-        self._append_log("信息", message, QColor(INK_BLACK))
+        self._append_log("信息", message, QColor(get_palette()["text"]))
 
     def log_warning(self, message: str):
         self._append_log("警告", message, QColor(WARNING_AMBER))

@@ -8,10 +8,7 @@ from PySide6.QtWidgets import (
 from shared.project import ProjectData
 from shared.constants import (
     SPACING_MD, SPACING_LG, SPACING_SM,
-    FONT_H2_SIZE, FONT_H3_SIZE, FONT_BODY_SIZE, FONT_EYEBROW_SIZE,
-    SUCCESS_GREEN, ERROR_RED, WARNING_AMBER,
-    SLATE_GRAY, INK_BLACK, LIFTED_CREAM, DUST_TAUPE, SIGNAL_ORANGE,
-    RADIUS_HERO,
+    FONT_BODY_SIZE, SUCCESS_GREEN, ERROR_RED,
 )
 from builder.ui.widgets.card_widget import CardWidget
 from builder.ui.workers.verify_worker import VerifyWorker
@@ -40,7 +37,7 @@ class Step3Pack(QWidget):
         outer_layout.addWidget(title)
 
         desc = QLabel("将校验数据和验证逻辑打包为独立的客户端 EXE 程序。打包前必须执行模拟验证。")
-        desc.setStyleSheet(f"color: {SLATE_GRAY}; font-size: {FONT_BODY_SIZE}px;")
+        desc.setProperty("cssClass", "hint")
         desc.setWordWrap(True)
         outer_layout.addWidget(desc)
 
@@ -90,7 +87,7 @@ class Step3Pack(QWidget):
         outer_layout.addWidget(self._build_progress)
 
         self._build_status = QLabel("")
-        self._build_status.setStyleSheet(f"font-size: {FONT_EYEBROW_SIZE}px; font-weight: 500;")
+        self._build_status.setProperty("cssClass", "hint")
         self._build_status.setVisible(False)
         self._build_status.setWordWrap(True)
         outer_layout.addWidget(self._build_status)
@@ -180,7 +177,7 @@ class Step3Pack(QWidget):
         layout = cw.layout()
 
         hint = QLabel("验证器启动时自动定位目标文件的规则")
-        hint.setStyleSheet(f"color: {SLATE_GRAY}; font-size: {FONT_EYEBROW_SIZE}px;")
+        hint.setProperty("cssClass", "hint")
         hint.setWordWrap(True)
         layout.addWidget(hint)
 
@@ -207,7 +204,7 @@ class Step3Pack(QWidget):
         layout.addWidget(self._custom_edit)
 
         env_hint = QLabel("支持 %ProgramData%、%AppData%、%USERPROFILE% 等环境变量")
-        env_hint.setStyleSheet(f"color: {SLATE_GRAY}; font-size: 10px;")
+        env_hint.setProperty("cssClass", "hint")
         env_hint.setWordWrap(True)
         layout.addWidget(env_hint)
 
@@ -248,7 +245,7 @@ class Step3Pack(QWidget):
         layout.addLayout(row)
 
         self._cl_info = QLabel("文件数: 0 | 状态: 未就绪")
-        self._cl_info.setStyleSheet(f"color: {SLATE_GRAY}; font-size: {FONT_EYEBROW_SIZE}px;")
+        self._cl_info.setProperty("cssClass", "hint")
         self._cl_info.setToolTip("当前清单的统计信息")
         layout.addWidget(self._cl_info)
 
@@ -350,7 +347,7 @@ class Step3Pack(QWidget):
         layout = cw.layout()
 
         hint = QLabel("打包前必须运行模拟验证，确保校验清单与实际文件一致")
-        hint.setStyleSheet(f"color: {SIGNAL_ORANGE}; font-size: {FONT_EYEBROW_SIZE}px; font-weight: 500;")
+        hint.setProperty("cssClass", "accent")
         hint.setWordWrap(True)
         layout.addWidget(hint)
 
@@ -359,8 +356,8 @@ class Step3Pack(QWidget):
         lab.setToolTip("用于模拟验证的测试目标路径。应包含待校验的文件")
         row.addWidget(lab)
         self._sim_path = QLineEdit()
-        self._sim_path.setPlaceholderText("模拟验证的目标目录...")
-        self._sim_path.setToolTip("选择一个目录来模拟运行验证流程，检查文件完整性")
+        self._sim_path.setPlaceholderText("例如 D:\\release\\app ...")
+        self._sim_path.setToolTip("选择一个目录来模拟运行验证流程，检查文件完整性。\n应包含待校验的文件")
         row.addWidget(self._sim_path, 1)
         sim_browse = QPushButton("浏览...")
         sim_browse.clicked.connect(lambda: self._browse_dir(self._sim_path))
@@ -373,7 +370,7 @@ class Step3Pack(QWidget):
         layout.addWidget(self._sim_run_btn)
 
         self._sim_status = QLabel("未执行")
-        self._sim_status.setStyleSheet(f"font-size: {FONT_BODY_SIZE}px; font-weight: 500;")
+        self._sim_status.setProperty("cssClass", "hint")
         layout.addWidget(self._sim_status)
 
         self._sim_detail = QPlainTextEdit()
@@ -466,6 +463,9 @@ class Step3Pack(QWidget):
         self._checklist_combo.blockSignals(False)
         self._update_checklist_info()
 
+        if not self._sim_path.text().strip() and p.base_directory:
+            self._sim_path.setText(p.base_directory)
+
     def _run_simulation(self):
         target = self._sim_path.text().strip()
         if not target or not os.path.isdir(target):
@@ -484,7 +484,7 @@ class Step3Pack(QWidget):
 
         self._sim_run_btn.setEnabled(False)
         self._sim_status.setText("正在模拟验证...")
-        self._sim_status.setStyleSheet(f"font-size: {FONT_BODY_SIZE}px; font-weight: 500;")
+        self._sim_status.setProperty("cssClass", "hint")
 
         self._verify_worker = VerifyWorker(
             ok_entries, target, self._project.checksum_algorithm
@@ -509,6 +509,8 @@ class Step3Pack(QWidget):
             self._sim_status.setStyleSheet(
                 f"font-size: {FONT_BODY_SIZE}px; font-weight: 700; color: {SUCCESS_GREEN};"
             )
+            from builder.ui.widgets.toast import show_toast
+            show_toast(self, "模拟验证通过", level="success")
         else:
             self._sim_passed = False
             self._pack_btn.setEnabled(False)
@@ -536,6 +538,7 @@ class Step3Pack(QWidget):
 
     def _external_test(self):
         from builder.ui.widgets.dialogs import ExternalTestDialog
+        from shared.checksum_file import read_csv, read_sfv
         dlg = ExternalTestDialog(self)
         if dlg.exec():
             vals = dlg.get_values()
@@ -546,9 +549,9 @@ class Step3Pack(QWidget):
                 return
             try:
                 if cs_path.lower().endswith(".csv"):
-                    _, entries = __import__("shared.checksum_file", fromlist=["read_csv"]).read_csv(cs_path)
+                    _, entries = read_csv(cs_path)
                 else:
-                    entries = __import__("shared.checksum_file", fromlist=["read_sfv"]).read_sfv(cs_path)
+                    entries = read_sfv(cs_path)
 
                 checksum_entries = [
                     {"path": p, "hash": h, "status": "ok"}
@@ -590,14 +593,43 @@ class Step3Pack(QWidget):
             "verifier_subfolder": p.verifier_subfolder or "",
             "verifier_custom_template": p.verifier_custom_template or "",
             "icon_path": p.verifier_icon_path or "",
+            "verifier_embed_encrypted": p.verifier_embed_encrypted,
+            "verifier_enable_signature_verify": p.verifier_enable_signature_verify,
+            "verifier_enable_antidebug": p.verifier_enable_antidebug,
+            "verifier_enable_antisanbox": p.verifier_enable_antisanbox,
+            "run_after": vals.get("run_after", False),
         }
+
+        main_project = getattr(self.window(), "project", None)
+        if main_project and main_project.private_key_path:
+            private_key_path = main_project.private_key_path
+            if os.path.isfile(private_key_path):
+                from shared.crypto import load_rsa_private, load_ecdsa_private
+                try:
+                    with open(private_key_path, "rb") as f:
+                        pem_data = f.read()
+                    sig_algo = main_project.signature_algorithm
+                    if sig_algo == "ECDSA":
+                        key_obj = load_ecdsa_private(pem_data)
+                    else:
+                        key_obj = load_rsa_private(pem_data)
+                    from cryptography.hazmat.primitives import serialization
+                    pub_pem = key_obj.public_key().public_bytes(
+                        encoding=serialization.Encoding.PEM,
+                        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+                    ).decode("utf-8")
+                    project_dict["public_key_pem"] = pub_pem
+                    project_dict["signature_algorithm"] = sig_algo
+                except Exception:
+                    pass
 
         self._build_progress.setVisible(True)
         self._build_progress.setValue(0)
         self._build_status.setVisible(True)
         self._build_status.setText("正在启动 PyInstaller 打包...")
-        self._build_status.setStyleSheet(f"font-size: {FONT_EYEBROW_SIZE}px; font-weight: 500;")
+        self._build_status.setProperty("cssClass", "hint")
         self._pack_btn.setEnabled(False)
+        self._run_after_build = vals.get("run_after", False)
 
         self._pack_worker = PackWorker(project_dict)
         self._pack_worker.progress.connect(self._on_build_progress)
@@ -616,6 +648,9 @@ class Step3Pack(QWidget):
             f"font-size: {FONT_BODY_SIZE}px; font-weight: 700; color: {SUCCESS_GREEN};"
         )
         self._pack_btn.setEnabled(True)
+        if self._run_after_build and os.path.isfile(output_path):
+            import subprocess
+            subprocess.Popen([output_path], creationflags=subprocess.CREATE_NO_WINDOW)
         QMessageBox.information(
             self, "打包完成",
             f"验证器已成功打包为单个 EXE 文件!\n\n"
