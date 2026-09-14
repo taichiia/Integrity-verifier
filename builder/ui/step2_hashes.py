@@ -312,7 +312,18 @@ class Step2Hashes(QWidget):
         self._start_btn.setEnabled(False)
         self._pause_btn.setEnabled(True)
         self._pause_btn.setText("暂停")
-        self._checksum_entries.clear()
+        valid_paths = {self._normalized_path(path) for path in paths}
+        self._checksum_entries = []
+        for entry in entries:
+            path = entry["path"]
+            full_path = path if os.path.isabs(path) else os.path.join(base, path)
+            is_valid = self._normalized_path(full_path) in valid_paths
+            self._checksum_entries.append({
+                "path": path,
+                "hash": "",
+                "status": "pending" if is_valid else "error",
+            })
+        self._update_manifest()
 
         self._progress_panel.clear()
         self._progress_panel.log_info(f"开始计算 {len(paths):,} 个文件的哈希值...")
@@ -358,10 +369,10 @@ class Step2Hashes(QWidget):
                 pass
 
         if error:
-            self._checksum_entries.append({"path": rel_path, "hash": "", "status": "error"})
+            self._set_entry_result(rel_path, "", "error")
             self._progress_panel.log_warning(f"{rel_path}: {error}")
         else:
-            self._checksum_entries.append({"path": rel_path, "hash": digest, "status": "ok"})
+            self._set_entry_result(rel_path, digest, "ok")
 
     def _on_finished(self, results: list):
         self._is_running = False
@@ -390,6 +401,24 @@ class Step2Hashes(QWidget):
             status = " OK " if e["status"] == "ok" else "ERR " if e["status"] == "error" else "PEND"
             lines.append(f"[{status}] {e['hash']}  {e['path']}")
         self._manifest.setPlainText("\n".join(lines) if lines else "暂无数据 — 请点击「开始计算」")
+
+    def _set_entry_result(self, path: str, digest: str, status: str):
+        for entry in self._checksum_entries:
+            if self._normalized_path(entry["path"]) == self._normalized_path(path):
+                entry["hash"] = digest
+                entry["status"] = status
+                break
+        else:
+            self._checksum_entries.append({
+                "path": path,
+                "hash": digest,
+                "status": status,
+            })
+        self._update_manifest()
+
+    def _normalized_path(self, path: str) -> str:
+        full_path = path if os.path.isabs(path) else os.path.join(self._project.base_directory, path)
+        return os.path.normcase(os.path.abspath(full_path))
 
     def _save_checksum(self):
         out = self._out_path.text().strip()

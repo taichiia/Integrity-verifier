@@ -1,6 +1,6 @@
 import os
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtCore import Qt, Signal, QUrl
+from PySide6.QtGui import QAction, QDesktopServices, QKeySequence
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QStackedWidget,
     QStatusBar, QLabel, QMessageBox, QFileDialog,
@@ -234,13 +234,31 @@ class BuilderMainWindow(QMainWindow):
         )
 
     def _show_about(self):
-        QMessageBox.about(
-            self, "关于 — 文件完整性验证工具",
-            "文件完整性验证工具 v1.0.0\n\n"
-            "生成签名/加密的校验文件\n"
-            "并打包为独立的验证器可执行程序。\n\n"
-            "好用的話請到https://github.com/taichiia/Integrity-verifier打個star吧"
+        box = self._create_about_box()
+        box.exec()
+        self._handle_about_result(box)
+
+    def _create_about_box(self):
+        box = QMessageBox(self)
+        box.setWindowTitle("关于 — 文件完整性验证工具")
+        box.setTextFormat(Qt.TextFormat.RichText)
+        box.setText(
+            "<p>文件完整性验证工具 v1.0.0</p>"
+            "<p>生成签名/加密的校验文件，并打包为独立的验证器可执行程序。</p>"
+            "<p><a href=\"https://github.com/taichiia/Integrity-verifier\">"
+            "https://github.com/taichiia/Integrity-verifier</a></p>"
         )
+        open_repo = box.addButton("打开仓库", QMessageBox.ButtonRole.ActionRole)
+        close = box.addButton("关闭", QMessageBox.ButtonRole.AcceptRole)
+        box.setDefaultButton(close)
+        return box
+
+    def _handle_about_result(self, box: QMessageBox):
+        open_repo = next(
+            button for button in box.buttons() if button.text() == "打开仓库"
+        )
+        if box.clickedButton() is open_repo:
+            QDesktopServices.openUrl(QUrl("https://github.com/taichiia/Integrity-verifier"))
 
     def _toggle_theme(self):
         new_mode = "dark" if get_theme_mode() == "light" else "light"

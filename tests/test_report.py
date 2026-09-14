@@ -1,8 +1,14 @@
 import csv
+import json
 import os
 import tempfile
 
-from verifier.report import STATUS_LABELS, write_csv_report, write_txt_report
+from verifier.report import (
+    STATUS_LABELS,
+    write_csv_report,
+    write_json_report,
+    write_txt_report,
+)
 
 
 SAMPLE_RESULTS = [
@@ -56,4 +62,20 @@ def test_status_labels_cover_all_statuses():
     assert STATUS_LABELS == {
         "pass": "通过", "fail": "失败", "missing": "缺失",
         "extra": "多余", "error": "错误",
+    }
+
+
+def test_json_report_has_machine_readable_summary():
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, "report.json")
+        write_json_report(path, SAMPLE_RESULTS, "D:/release")
+        with open(path, "r", encoding="utf-8") as f:
+            report = json.load(f)
+
+    assert report["target_path"] == "D:/release"
+    assert [r["path"] for r in report["results"]] == [
+        "a.txt", "b.txt", "c.txt", "extra.log",
+    ]
+    assert report["summary"] == {
+        "pass": 1, "fail": 1, "missing": 1, "extra": 1, "error": 0, "total": 4,
     }

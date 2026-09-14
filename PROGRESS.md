@@ -84,3 +84,13 @@
 - Completed: Builder now passes named verifier checklists and the active checklist; PackWorker embeds the active checklist's entries plus all named lists; Verifier populates its checklist combo, switches entries and active state, clears stale results, and locks the combo during verification.
 - Tests: 67 passing, including active-checklist embedding and Verifier checklist switching.
 - Next: JSON report export.
+
+## Round 10
+
+- Leftover: none.
+- Candidates: JSON report export, repository shortcut in Help/About, Builder Step 2 manifest state repair.
+- Selected: JSON report export (value 4 / cost 1 / risk 2), with the repository shortcut and Step 2 UX repair.
+- Completed: Verifier can export a machine-readable JSON report with target path, per-result fields, status labels, and summary counts; Builder Help/About now has a repository shortcut; Builder Step 2 now shows the full PEND/ERR manifest immediately after starting and updates entries by normalized path, preventing a stuck PEND state; ProgressPanel font constant import repaired.
+- User simulation: Builder Step 2 was exercised through scan, selection, step navigation, and Start; successful files become OK and a file missing during hashing becomes ERR. Verifier JSON export, export cancellation, and the About repository shortcut were also exercised.
+- Tests: 75 passing, including real UI-flow tests for Step 2 and UI-level tests for JSON export and About.
+- Next: Round 11 code review and safety pass.

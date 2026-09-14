@@ -1,5 +1,6 @@
 import csv
 from datetime import datetime
+import json
 
 
 STATUS_LABELS = {
@@ -41,3 +42,31 @@ def write_txt_report(filepath: str, results: list[dict], target_path: str = "") 
         total = len(results)
         f.write("-" * 60 + "\n")
         f.write(f"汇总: {passed}/{total} 通过, {total - passed} 项异常\n")
+
+
+def write_json_report(filepath: str, results: list[dict], target_path: str = "") -> None:
+    counts = {status: 0 for status in STATUS_LABELS}
+    for result in results:
+        status = result.get("status", "")
+        counts[status] = counts.get(status, 0) + 1
+
+    report = {
+        "generated_at": datetime.now().isoformat(),
+        "target_path": target_path,
+        "status_labels": STATUS_LABELS,
+        "results": [
+            {
+                "status": result.get("status", ""),
+                "path": result.get("path", ""),
+                "expected": result.get("expected", ""),
+                "actual": result.get("actual", ""),
+            }
+            for result in results
+        ],
+        "summary": {
+            **counts,
+            "total": len(results),
+        },
+    }
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(report, f, ensure_ascii=False, indent=2)

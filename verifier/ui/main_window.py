@@ -732,15 +732,21 @@ class VerifierMainWindow(QMainWindow):
 
         path, _ = QFileDialog.getSaveFileName(
             self, "导出报告", "验证报告.csv",
-            "CSV 文件 (*.csv);;文本文件 (*.txt);;所有文件 (*)"
+            "CSV 文件 (*.csv);;文本文件 (*.txt);;JSON 文件 (*.json);;所有文件 (*)"
         )
         if not path:
             return
 
         try:
-            from verifier.report import write_csv_report, write_txt_report
+            from verifier.report import (
+                write_csv_report,
+                write_txt_report,
+                write_json_report,
+            )
             if path.endswith(".csv"):
                 write_csv_report(path, self._all_results, self._target_path.text())
+            elif path.endswith(".json"):
+                write_json_report(path, self._all_results, self._target_path.text())
             else:
                 write_txt_report(path, self._all_results, self._target_path.text())
 

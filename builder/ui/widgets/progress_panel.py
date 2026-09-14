@@ -10,6 +10,7 @@ from PySide6.QtGui import QTextCharFormat, QColor, QFont
 from shared.constants import (
     SUCCESS_GREEN, ERROR_RED, WARNING_AMBER,
     SPACING_SM, SPACING_MD,
+    FONT_MONO_SIZE,
 )
 from shared.theme import get_palette
 
