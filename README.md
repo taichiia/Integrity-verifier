@@ -58,6 +58,16 @@ python builder/main.py
 python verifier/main.py
 ```
 
+## CLI 验证 | CLI Verify
+
+```bash
+# Verify a directory without GUI (exit code 0 = pass, 1 = verify failed)
+python -m verifier.cli --target D:/release/app
+
+# Machine-readable JSON report
+python -m verifier.cli --target D:/release/app --json
+```
+
 ## Build | 打包
 
 ```bash

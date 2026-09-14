@@ -13,3 +13,13 @@
 - 测试: 36 通过（新增 `test_report.py` 4 个、`test_verifier_model.py` 2 个；覆盖 pass/fail/missing/extra 四态与空报告边界）。
 - 遗留项: 无。
 - 下一轮计划: 验证器 CLI 模式（无 GUI 命令行验证，退出码反映结果）。
+
+## 第 2 轮
+
+- 上一轮遗留: 无。
+- 候选功能: ① 验证器 CLI 模式 ② 验证耗时统计 ③ QSettings 主题记忆。
+- 选择: ①（价值 4 / 成本 3 / 风险 2，CI/自动化集成入口）。
+- 已完成: `verifier/cli.py`（`python -m verifier.cli --target <dir>`，退出码 0=通过/1=验证失败/2=无数据/3=目标无效，`--json` 机器可读报告）；`VerifyWorker` 移至 `shared/verify_worker.py` 并新增 `exclude_paths` 参数（builder 侧转发 shim，公共 API 不变）；内嵌配置加载提取至 `verifier/embedded.py`（GUI/CLI 共用，无 GUI 弹窗）；README 补充 CLI 用法。
+- 测试: 46 通过（新增 `test_cli.py` 9 个含子进程端到端与 `--help` 冒烟、`test_verify_worker.py` 新增 exclude_paths 1 个；覆盖成功/篡改/缺失/多余/坏目标/无数据/JSON 全路径）。测试发现并修复 `EmbeddedConfigError.message` 缺失问题。
+- 遗留项: 无。
+- 下一轮计划: 验证耗时与速度统计（verifier GUI 显示用时与文件/秒）。
