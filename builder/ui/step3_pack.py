@@ -588,6 +588,8 @@ class Step3Pack(QWidget):
             "verifier_enable_signature_verify": p.verifier_enable_signature_verify,
             "verifier_enable_antidebug": p.verifier_enable_antidebug,
             "verifier_enable_antisanbox": p.verifier_enable_antisanbox,
+            "verifier_checklists": p.verifier_checklists,
+            "verifier_active_checklist": p.verifier_active_checklist,
             "run_after": vals.get("run_after", False),
         }
 

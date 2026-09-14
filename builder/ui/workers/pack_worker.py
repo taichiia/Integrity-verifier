@@ -119,6 +119,16 @@ class PackWorker(QThread):
         import hashlib
 
         checksum_entries = self._project.get("checksum_entries", [])
+        checklists = self._project.get("verifier_checklists", {})
+        active_checklist = self._project.get("verifier_active_checklist", "")
+
+        if not checklists:
+            checklists = {"default": checksum_entries}
+            active_checklist = active_checklist or "default"
+        if active_checklist not in checklists:
+            active_checklist = next(iter(checklists))
+        checksum_entries = checklists.get(active_checklist, [])
+
         manifest_hash = ""
         if checksum_entries:
             manifest_bytes = json.dumps(
@@ -134,6 +144,8 @@ class PackWorker(QThread):
             "subfolder": self._project.get("verifier_subfolder", ""),
             "custom_template": self._project.get("verifier_custom_template", ""),
             "checksum_entries": checksum_entries,
+            "checklists": checklists,
+            "active_checklist": active_checklist,
             "algorithm": self._project.get("checksum_algorithm", "sha256"),
             "signature_algorithm": self._project.get("signature_algorithm", "RSA"),
             "manifest_hash": manifest_hash,

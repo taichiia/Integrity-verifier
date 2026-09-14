@@ -254,9 +254,10 @@ class VerifierMainWindow(QMainWindow):
         checklist_label.setToolTip("选择要使用的校验清单（如项目中配置了多套清单）")
         title_row.addWidget(checklist_label)
         self._checklist_combo = QComboBox()
-        self._checklist_combo.addItem("默认")
         self._checklist_combo.setToolTip("切换不同的校验清单。每套清单对应一组校验文件数据")
+        self._checklist_combo.currentTextChanged.connect(self._on_checklist_changed)
         title_row.addWidget(self._checklist_combo)
+        self._refresh_checklists()
 
         layout.addLayout(title_row)
 
@@ -450,6 +451,38 @@ class VerifierMainWindow(QMainWindow):
                 "提示：您可以通过「浏览...」按钮选择其他目录。"
             )
 
+    def _refresh_checklists(self):
+        checklists = self._config.get("checklists")
+        if not checklists:
+            checklists = {"default": self._config.get("checksum_entries", [])}
+
+        self._checklist_combo.blockSignals(True)
+        self._checklist_combo.clear()
+        for name in checklists:
+            self._checklist_combo.addItem(str(name))
+
+        active = self._config.get("active_checklist")
+        if active not in checklists:
+            active = next(iter(checklists))
+        index = self._checklist_combo.findText(str(active))
+        if index >= 0:
+            self._checklist_combo.setCurrentIndex(index)
+        self._checklist_combo.blockSignals(False)
+
+    def _on_checklist_changed(self, name: str):
+        checklists = self._config.get("checklists")
+        if not checklists:
+            checklists = {"default": self._config.get("checksum_entries", [])}
+        if name not in checklists:
+            return
+
+        self._config["checksum_entries"] = checklists[name]
+        self._config["active_checklist"] = name
+        self._all_results.clear()
+        self._manifest_order.clear()
+        self._result_model.clear()
+        self._update_stats()
+
     def _on_target_path_dropped(self, path: str):
         self._result_model.clear()
         self._all_results.clear()
@@ -480,6 +513,7 @@ class VerifierMainWindow(QMainWindow):
 
         self._start_btn.setEnabled(False)
         self._stop_btn.setEnabled(True)
+        self._checklist_combo.setEnabled(False)
         self._progress.setValue(0)
         self._current_label.setText("正在扫描...")
         self._speed_label.setText("")
@@ -578,6 +612,7 @@ class VerifierMainWindow(QMainWindow):
         self._worker = None
         self._start_btn.setEnabled(True)
         self._stop_btn.setEnabled(False)
+        self._checklist_combo.setEnabled(True)
         self._progress.setValue(100)
         self._current_label.setText("验证完成")
         if self._verify_started_at is not None:

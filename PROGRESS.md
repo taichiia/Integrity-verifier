@@ -75,3 +75,12 @@
 - Completed: Verifier records the embedded manifest order and sorts completed results by that order; extra files remain after manifest entries; target-path drops reset the order state.
 - Tests: 65 passing, including manifest-order sorting and completion-order-to-display sorting.
 - Next: multi-checklist support in Verifier.
+
+## Round 9
+
+- Leftover: none.
+- Candidates: multi-checklist support, JSON report export, window title verify status.
+- Selected: multi-checklist support (value 4 / cost 2 / risk 2).
+- Completed: Builder now passes named verifier checklists and the active checklist; PackWorker embeds the active checklist's entries plus all named lists; Verifier populates its checklist combo, switches entries and active state, clears stale results, and locks the combo during verification.
+- Tests: 67 passing, including active-checklist embedding and Verifier checklist switching.
+- Next: JSON report export.
