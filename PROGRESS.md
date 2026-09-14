@@ -66,3 +66,12 @@
 - Completed: result rows now have a Copy Full Path context action; it combines the selected relative path with the configured target directory and writes it to the clipboard.
 - Tests: 63 passing, including full-path composition from target directory.
 - Next: results in manifest order.
+
+## Round 8
+
+- Leftover: none.
+- Candidates: results in manifest order, multi-checklist support, JSON report export.
+- Selected: results in manifest order (value 3 / cost 2 / risk 1).
+- Completed: Verifier records the embedded manifest order and sorts completed results by that order; extra files remain after manifest entries; target-path drops reset the order state.
+- Tests: 65 passing, including manifest-order sorting and completion-order-to-display sorting.
+- Next: multi-checklist support in Verifier.

@@ -201,6 +201,7 @@ class VerifierMainWindow(QMainWindow):
         self._settings = settings or create_settings()
         self._worker = None
         self._all_results: list[dict] = []
+        self._manifest_order: list[str] = []
         self._verify_started_at: float | None = None
         self._verify_total = 0
 
@@ -452,6 +453,7 @@ class VerifierMainWindow(QMainWindow):
     def _on_target_path_dropped(self, path: str):
         self._result_model.clear()
         self._all_results.clear()
+        self._manifest_order.clear()
         self._verify_total = 0
         self._speed_label.setText("")
         self._update_stats()
@@ -483,6 +485,7 @@ class VerifierMainWindow(QMainWindow):
         self._speed_label.setText("")
         self._verify_started_at = time.perf_counter()
         self._all_results = []
+        self._manifest_order = [os.path.normpath(e["path"]) for e in entries]
 
         paths_to_hash = []
         expected_map = {}
@@ -579,9 +582,24 @@ class VerifierMainWindow(QMainWindow):
         self._current_label.setText("验证完成")
         if self._verify_started_at is not None:
             elapsed = time.perf_counter() - self._verify_started_at
-            self._speed_label.setText(format_verify_stats(elapsed, self._verify_total))
+        self._speed_label.setText(format_verify_stats(elapsed, self._verify_total))
 
+        self._sort_results_for_display()
         self._filter_results()
+
+    def _sort_results_for_display(self):
+        manifest_index = {
+            os.path.normpath(path).lower(): index
+            for index, path in enumerate(self._manifest_order)
+        }
+
+        def result_key(result: dict):
+            path = os.path.normpath(result.get("path", "")).lower()
+            if path in manifest_index:
+                return 0, manifest_index[path], ""
+            return 1, len(manifest_index), path
+
+        self._all_results.sort(key=result_key)
 
     def _filter_results(self):
         anomaly_only = self._anomaly_only_cb.isChecked()
