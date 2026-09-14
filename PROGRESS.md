@@ -103,3 +103,12 @@
 - Completed: Verifier and Builder table models now replace their internal lists on clear instead of mutating shared caller-owned lists; Builder registers all three step shortcuts instead of only Ctrl+3.
 - Tests: 78 passing, including aliasing regressions and step-shortcut registration.
 - Next: Round 12 performance pass.
+
+## Round 12
+
+- Leftover: none.
+- Candidates: indexed manifest updates, ScanWorker batching, HashWorker batching.
+- Selected: indexed manifest updates (value 4 / cost 2 / risk 1).
+- Completed: Builder Step 2 now maps entries to manifest rows and updates one finished line directly instead of rebuilding and rescanning the full manifest for every file.
+- Tests: 79 passing, including a 100-entry indexed manifest update and row-level verification.
+- Next: Round 13 UI validation pass.

@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QTextCursor
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QPushButton,
     QLabel, QLineEdit, QComboBox, QFileDialog, QRadioButton,
@@ -25,6 +26,7 @@ class Step2Hashes(QWidget):
         self._project = project
         self._worker: HashWorker | None = None
         self._checksum_entries: list[dict] = []
+        self._entry_rows: dict[str, int] = {}
         self._is_running = False
         self._is_paused = False
 
@@ -398,23 +400,51 @@ class Step2Hashes(QWidget):
     def _update_manifest(self):
         lines = []
         for e in self._checksum_entries:
-            status = " OK " if e["status"] == "ok" else "ERR " if e["status"] == "error" else "PEND"
-            lines.append(f"[{status}] {e['hash']}  {e['path']}")
+            lines.append(self._manifest_line(e))
         self._manifest.setPlainText("\n".join(lines) if lines else "暂无数据 — 请点击「开始计算」")
+        self._sync_entry_rows()
 
     def _set_entry_result(self, path: str, digest: str, status: str):
-        for entry in self._checksum_entries:
-            if self._normalized_path(entry["path"]) == self._normalized_path(path):
-                entry["hash"] = digest
-                entry["status"] = status
-                break
+        key = self._normalized_path(path)
+        row = self._entry_rows.get(key)
+        if row is not None:
+            entry = self._checksum_entries[row]
+            entry["hash"] = digest
+            entry["status"] = status
+            self._refresh_manifest_line(row)
         else:
+            row = len(self._checksum_entries)
             self._checksum_entries.append({
                 "path": path,
                 "hash": digest,
                 "status": status,
             })
-        self._update_manifest()
+            self._entry_rows[key] = row
+            self._manifest.appendPlainText(self._manifest_line(self._checksum_entries[row]))
+
+    @staticmethod
+    def _manifest_line(entry: dict) -> str:
+        status = " OK " if entry["status"] == "ok" else "ERR " if entry["status"] == "error" else "PEND"
+        return f"[{status}] {entry['hash']}  {entry['path']}"
+
+    def _sync_entry_rows(self):
+        self._entry_rows = {
+            self._normalized_path(entry["path"]): row
+            for row, entry in enumerate(self._checksum_entries)
+        }
+
+    def _refresh_manifest_line(self, row: int):
+        if row < 0 or row >= len(self._checksum_entries):
+            return
+        block = self._manifest.document().findBlockByLineNumber(row)
+        if not block.isValid():
+            self._update_manifest()
+            return
+
+        cursor = self._manifest.textCursor()
+        cursor.setPosition(block.position())
+        cursor.select(QTextCursor.SelectionType.LineUnderCursor)
+        cursor.insertText(self._manifest_line(self._checksum_entries[row]))
 
     def _normalized_path(self, path: str) -> str:
         full_path = path if os.path.isabs(path) else os.path.join(self._project.base_directory, path)

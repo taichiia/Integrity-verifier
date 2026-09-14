@@ -60,3 +60,24 @@ def test_start_hash_shows_pending_manifest(qapp, tmp_path, monkeypatch):
     assert step._checksum_entries[1]["status"] == "error"
     assert "PEND" in step._manifest.toPlainText()
     assert "ERR" in step._manifest.toPlainText()
+
+
+def test_manifest_result_updates_are_indexed(qapp, tmp_path):
+    project = ProjectData()
+    project.base_directory = str(tmp_path)
+    project.checksum_entries = [
+        {"path": f"file-{i}.txt", "hash": "", "status": "pending"}
+        for i in range(100)
+    ]
+    step = Step2Hashes(project)
+
+    step.refresh_from_project()
+    step._update_manifest()
+    assert step._entry_rows[step._normalized_path("file-40.txt")] == 40
+
+    step._set_entry_result(str(tmp_path / "file-40.txt"), "digest-40", "ok")
+
+    assert step._checksum_entries[40]["hash"] == "digest-40"
+    assert step._checksum_entries[40]["status"] == "ok"
+    assert step._manifest.toPlainText().count("digest-40") == 1
+    assert step._manifest.toPlainText().splitlines()[40] == "[ OK ] digest-40  file-40.txt"
