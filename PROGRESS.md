@@ -1,53 +1,59 @@
-# PROGRESS
+ï»¿# PROGRESS
 
-## åŸºçº¿
+## Baseline
 
-- æäº¤ `4142989`: ä¸»é¢˜é›†ä¸­åŒ–ã€æ‰“åŒ…ä¸´æ—¶ç›®å½•æ¸…ç†ã€éªŒè¯å™¨è‡ªæ’é™¤ã€QSS å‘Šè­¦ä¿®å¤ã€æµ‹è¯•è¡¥é½ï¼ˆ30 é€šè¿‡ï¼‰ã€‚
+- Commit: 4142989. Centralized themes, used temporary packaging directories, excluded the verifier from self-verification, removed unsupported QSS box-shadow, and added tests (30 passing).
 
-## ç¬¬ 1 è½®
+## Round 1
 
-- ä¸Šä¸€è½®é—ç•™: æ— ã€‚
-- å€™é€‰åŠŸèƒ½: â‘  éªŒè¯ç»“æœ"å®é™…å“ˆå¸Œå€¼"åˆ—å¹¶å¯¼å‡º â‘¡ éªŒè¯å™¨ CLI æ¨¡å¼ â‘¢ éªŒè¯è€—æ—¶ç»Ÿè®¡ã€‚
-- é€‰æ‹©: â‘ ï¼ˆä»·å€¼ 5 / æˆæœ¬ 2 / é£é™© 2ï¼Œæ’éšœä¸ç¯¡æ”¹åˆ†æå¿…éœ€ï¼‰ã€‚
-- å·²å®Œæˆ: éªŒè¯ç»“æœè¡¨æ–°å¢"å®é™…å“ˆå¸Œå€¼"åˆ—ï¼ˆextra/missing ä¸ºç©ºï¼‰ï¼›æŠ¥å‘Šå¯¼å‡ºè¿ç§»åˆ° `verifier/report.py`ï¼ˆCSV/TXT å‡å«å®é™…å“ˆå¸Œä¸æ±‡æ€»ï¼‰ï¼›çŠ¶æ€åå•ä¸€æ¥æº `STATUS_LABELS`ã€‚
-- æµ‹è¯•: 36 é€šè¿‡ï¼ˆæ–°å¢ `test_report.py` 4 ä¸ªã€`test_verifier_model.py` 2 ä¸ªï¼›è¦†ç›– pass/fail/missing/extra å››æ€ä¸ç©ºæŠ¥å‘Šè¾¹ç•Œï¼‰ã€‚
-- é—ç•™é¡¹: æ— ã€‚
-- ä¸‹ä¸€è½®è®¡åˆ’: éªŒè¯å™¨ CLI æ¨¡å¼ï¼ˆæ—  GUI å‘½ä»¤è¡ŒéªŒè¯ï¼Œé€€å‡ºç åæ˜ ç»“æœï¼‰ã€‚
+- Leftover: none.
+- Candidates: actual-hash column with report export, verifier CLI mode, elapsed-time statistics.
+- Selected: actual-hash column with report export (value 5 / cost 2 / risk 2).
+- Completed: verifier results show the actual hash column; report export moved to verifier/report.py with actual hashes and summary; STATUS_LABELS is the single source.
+- Tests: 36 passing.
+- Next: verifier CLI mode.
 
-## ç¬¬ 2 è½®
+## Round 2
 
-- ä¸Šä¸€è½®é—ç•™: æ— ã€‚
-- å€™é€‰åŠŸèƒ½: â‘  éªŒè¯å™¨ CLI æ¨¡å¼ â‘¡ éªŒè¯è€—æ—¶ç»Ÿè®¡ â‘¢ QSettings ä¸»é¢˜è®°å¿†ã€‚
-- é€‰æ‹©: â‘ ï¼ˆä»·å€¼ 4 / æˆæœ¬ 3 / é£é™© 2ï¼ŒCI/è‡ªåŠ¨åŒ–é›†æˆå…¥å£ï¼‰ã€‚
-- å·²å®Œæˆ: `verifier/cli.py`ï¼ˆ`python -m verifier.cli --target <dir>`ï¼Œé€€å‡ºç  0=é€šè¿‡/1=éªŒè¯å¤±è´¥/2=æ— æ•°æ®/3=ç›®æ ‡æ— æ•ˆï¼Œ`--json` æœºå™¨å¯è¯»æŠ¥å‘Šï¼‰ï¼›`VerifyWorker` ç§»è‡³ `shared/verify_worker.py` å¹¶æ–°å¢ `exclude_paths` å‚æ•°ï¼ˆbuilder ä¾§è½¬å‘ shimï¼Œå…¬å…± API ä¸å˜ï¼‰ï¼›å†…åµŒé…ç½®åŠ è½½æå–è‡³ `verifier/embedded.py`ï¼ˆGUI/CLI å…±ç”¨ï¼Œæ—  GUI å¼¹çª—ï¼‰ï¼›README è¡¥å…… CLI ç”¨æ³•ã€‚
-- æµ‹è¯•: 46 é€šè¿‡ï¼ˆæ–°å¢ `test_cli.py` 9 ä¸ªå«å­è¿›ç¨‹ç«¯åˆ°ç«¯ä¸ `--help` å†’çƒŸã€`test_verify_worker.py` æ–°å¢ exclude_paths 1 ä¸ªï¼›è¦†ç›–æˆåŠŸ/ç¯¡æ”¹/ç¼ºå¤±/å¤šä½™/åç›®æ ‡/æ— æ•°æ®/JSON å…¨è·¯å¾„ï¼‰ã€‚æµ‹è¯•å‘ç°å¹¶ä¿®å¤ `EmbeddedConfigError.message` ç¼ºå¤±é—®é¢˜ã€‚
-- é—ç•™é¡¹: æ— ã€‚
-- ä¸‹ä¸€è½®è®¡åˆ’: éªŒè¯è€—æ—¶ä¸é€Ÿåº¦ç»Ÿè®¡ï¼ˆverifier GUI æ˜¾ç¤ºç”¨æ—¶ä¸æ–‡ä»¶/ç§’ï¼‰ã€‚
+- Leftover: none.
+- Candidates: verifier CLI mode, elapsed-time statistics, QSettings theme memory.
+- Selected: verifier CLI mode (value 4 / cost 3 / risk 2).
+- Completed: python -m verifier.cli --target <dir> with JSON output and stable exit codes; VerifyWorker moved to shared/verify_worker.py with exclude_paths; embedded config loading extracted to verifier/embedded.py; README CLI section.
+- Tests: 46 passing, including subprocess end-to-end.
+- Next: verifier elapsed and speed statistics.
 
-## ç¬¬ 3 è½®
+## Round 3
 
-- ä¸Šä¸€è½®é—ç•™: æ— ã€‚
-- å€™é€‰åŠŸèƒ½: â‘  éªŒè¯è€—æ—¶ä¸é€Ÿåº¦ç»Ÿè®¡ â‘¡ QSettings ä¸»é¢˜/å‡ ä½•è®°å¿† â‘¢ æ‹–æ‹½ç›®å½•åˆ°éªŒè¯å™¨ã€‚
-- é€‰æ‹©: â‘ ï¼ˆä»·å€¼ 3 / æˆæœ¬ 1 / é£é™© 1ï¼›ç°æœ‰é€Ÿåº¦æ ‡ç­¾æ˜¯ä»æœªæ›´æ–°çš„æ­» UIï¼‰ã€‚
-- å·²å®Œæˆ: éªŒè¯è¿›åº¦ä¸­å®æ—¶æ˜¾ç¤ºæ–‡ä»¶/ç§’ï¼Œå®Œæˆæ—¶æ˜¾ç¤º"ç”¨æ—¶ X ç§’ Â· Y æ–‡ä»¶/ç§’"ï¼›æå– `format_verify_stats` çº¯å‡½æ•°ï¼›ä¿®å¤ `_all_results` åœ¨æ— æ ¡éªŒæ•°æ®è·¯å¾„ä¸‹æœªåˆå§‹åŒ–çš„è¾¹ç•Œé—®é¢˜ã€‚
-- æµ‹è¯•: 50 é€šè¿‡ï¼ˆæ–°å¢ `test_verifier_stats.py` 4 ä¸ªï¼›è¦†ç›–å¸¦æ–‡ä»¶/é›¶æ–‡ä»¶/é›¶è€—æ—¶è¾¹ç•Œä¸ GUI å®Œæˆå›è°ƒæ›´æ–°æ ‡ç­¾ï¼‰ã€‚
-- é—ç•™é¡¹: æ— ã€‚
-- ä¸‹ä¸€è½®è®¡åˆ’: QSettings è®°ä½ä¸»é¢˜æ¨¡å¼ä¸çª—å£å‡ ä½•ï¼ˆbuilder + verifierï¼‰ã€‚
+- Leftover: none.
+- Candidates: verifier elapsed and speed statistics, QSettings geometry/theme memory, target-folder drag-and-drop.
+- Selected: elapsed and speed statistics (value 3 / cost 1 / risk 1).
+- Completed: live files/sec while verifying, elapsed and rate after completion, reusable format_verify_stats(), and fixed uninitialized _all_results edge case.
+- Tests: 50 passing.
+- Next: QSettings geometry/theme memory.
 
 ## Round 4
-- ÉÏÒ»ÂÖÒÅÁô: ÎŞ¡£
-- ºòÑ¡¹¦ÄÜ: CSV Ëã·¨×Ô¶¯¼ì²â; QSettings ¼ÇÒäÖ÷Ìâ/¼¸ºÎ; ÍÏ×§Ä¿Â¼µ½ÑéÖ¤Æ÷Ä¿±êÂ·¾¶¡£
-- Ñ¡Ôñ: CSV Ëã·¨×Ô¶¯¼ì²â£¨¼ÛÖµ 3 / ³É±¾ 1 / ·çÏÕ 1£©£¬Í¬Ê±ĞŞ¸´¹¤¾ß²Ëµ¥Íâ²¿Ğ£ÑéËÀÂ·¾¶¡£
-- ÒÑÍê³É: `shared/checksum_file.py` ĞÂÔö `load_checksum_entries()`£¬CSV ´ÓÍ·²¿Ê¶±ğËã·¨£¬SFV Ê¹ÓÃ»ØÍËËã·¨£»Step 3 Íâ²¿²âÊÔÊ¹ÓÃ¼ì²â½á¹û£»Builder ¹¤¾ß²Ëµ¥ÏÖÔÚÇĞ»»µ½ Step 3 ²¢´¥·¢ÍêÕûÍâ²¿Ğ£ÑéÁ÷³Ì£»ĞÂÔöÖ÷Ìâ»Ø¹é²âÊÔÈ·ÈÏ²»ÔÙÊä³ö `box-shadow`£»ÇåÀíÀúÊ·´ò°ü²ĞÁôµÄ `verifier/build/` ºÍ `.spec`¡£
-- ²âÊÔ: 55 Í¨¹ı£»¸²¸Ç CSV Í·²¿Ëã·¨¡¢ÎŞÍ·²¿Ä¬ÈÏÖµ¡¢SFV »ØÍË¡¢Builder ¹¤¾ß²Ëµ¥µ½ Step 3 µÄÁ´Â·ºÍÖ÷Ìâ»Ø¹é¡£
-- ÒÅÁôÏî: ÓÃ»§±¨¸æµÄ unknown box shadow ÅĞ¶¨Îª¾É´ò°ü Builder µÄÀúÊ·ÈÕÖ¾£»µ±Ç°Ô´ÂëÓëÖ÷Ìâ²âÊÔÒÑÈ·ÈÏ²»º¬¸ÃÊôĞÔ¡£
-- ÏÂÒ»ÂÖ¼Æ»®: QSettings ¼Ç×¡ Builder/Verifier µÄÖ÷ÌâÄ£Ê½Óë´°¿Ú¼¸ºÎ¡£
+
+- Leftover: the old Builder package still emitted unsupported box-shadow warnings because it predated the baseline fix.
+- Candidates: CSV algorithm auto-detection, QSettings geometry/theme memory, target-folder drag-and-drop.
+- Selected: CSV algorithm auto-detection (value 3 / cost 1 / risk 1).
+- Completed: load_checksum_entries() detects CSV header algorithm and uses fallback for SFV; external-test uses the detected algorithm; Builder Tools menu now switches to Step 3 and starts the external-test flow; added a regression test proving the stylesheet has no box-shadow; removed stale verifier/build/ and .spec artifacts.
+- Tests: 55 passing.
+- Next: QSettings geometry/theme memory.
 
 ## Round 5
-- ÉÏÒ»ÂÖÒÅÁô: ÎŞ¡£
-- ºòÑ¡¹¦ÄÜ: QSettings ¼ÇÒäÖ÷Ìâ/¼¸ºÎ; ÍÏ×§Ä¿Â¼µ½ÑéÖ¤Æ÷; ÓÒ¼ü¸´ÖÆÍêÕûÂ·¾¶¡£
-- Ñ¡Ôñ: QSettings ¼ÇÒäÖ÷Ìâ/¼¸ºÎ£¨¼ÛÖµ 3 / ³É±¾ 2 / ·çÏÕ 1£©¡£
-- ÒÑÍê³É: `shared/preferences.py` Ìá¹© QSettings ¶ÁĞ´£»Builder ºÍ Verifier ÔÚÆô¶¯Ê±»Ö¸´Ö÷ÌâÓë´°¿Ú¼¸ºÎ£¬Ö÷ÌâÇĞ»»Á¢¼´±£´æ£¬¹Ø±ÕÊ±±£´æ¼¸ºÎ£»¹¹ÔìÆ÷ĞÂÔö¿ÉÑ¡ `settings` ²ÎÊı£¬¹«¹²Ä¬ÈÏĞĞÎª²»±ä¡£
-- ²âÊÔ: 59 Í¨¹ı£»¸²¸ÇÖ÷Ìâ¶ÁĞ´¡¢·Ç·¨Öµ»ØÍË¡¢Builder/Verifier Ö÷ÌâÓë¼¸ºÎ»Ö¸´¡£
-- ÒÅÁôÏî: ÎŞ¡£
-- ÏÂÒ»ÂÖ¼Æ»®: ÍÏ×§ÎÄ¼ş¼Ğµ½ Verifier Ä¿±êÂ·¾¶ÊäÈë¿ò¡£
+
+- Leftover: none.
+- Candidates: QSettings geometry/theme memory, target-folder drag-and-drop, verifier context-menu full-path copy.
+- Selected: QSettings geometry/theme memory (value 3 / cost 2 / risk 1).
+- Completed: shared/preferences.py provides QSettings reads/writes; Builder and Verifier restore theme and geometry at startup; theme changes save immediately; geometry saves on close; optional settings parameter added without changing default public behavior.
+- Tests: 59 passing.
+- Next: target-folder drag-and-drop for Verifier.
+
+## Round 6
+
+- Leftover: none.
+- Candidates: target-folder drag-and-drop, verifier context-menu full-path copy, results in manifest order.
+- Selected: target-folder drag-and-drop (value 3 / cost 2 / risk 1).
+- Completed: the Verifier target path now accepts directory drops only, ignores file drops, emits a target-path signal, clears stale results and speed state, and shows a visible drop hint.
+- Tests: 62 passing, including directory-only drag acceptance, drop path setting, and result-state clearing.
+- Next: verifier context-menu full-path copy.

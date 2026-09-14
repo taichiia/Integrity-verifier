@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import sys
 import time
 
@@ -153,6 +154,41 @@ class ResultTableView(QTableView):
         painter.end()
 
 
+class TargetPathEdit(QLineEdit):
+    path_dropped = Signal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAcceptDrops(True)
+
+    def dragEnterEvent(self, event):
+        if _drop_directory(event) is not None:
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        path = _drop_directory(event)
+        if path is None:
+            event.ignore()
+            return
+
+        self.setText(path)
+        self.setStyleSheet("")
+        event.acceptProposedAction()
+        self.path_dropped.emit(path)
+
+
+def _drop_directory(event) -> str | None:
+    for url in event.mimeData().urls():
+        if not url.isLocalFile():
+            continue
+        path = Path(url.toLocalFile())
+        if path.is_dir():
+            return str(path)
+    return None
+
+
 class VerifierMainWindow(QMainWindow):
     def __init__(
         self,
@@ -238,8 +274,9 @@ class VerifierMainWindow(QMainWindow):
         left_layout.addWidget(path_label)
 
         path_row = QHBoxLayout()
-        self._target_path = QLineEdit()
+        self._target_path = TargetPathEdit()
         self._target_path.setReadOnly(True)
+        self._target_path.path_dropped.connect(self._on_target_path_dropped)
         self._target_path.setToolTip(
             "当前验证目标路径。\n"
             "打包时根据路径规则自动配置，也可手动浏览选择"
@@ -251,6 +288,10 @@ class VerifierMainWindow(QMainWindow):
         browse_btn.clicked.connect(self._browse_target)
         path_row.addWidget(browse_btn)
         left_layout.addLayout(path_row)
+
+        drop_hint = QLabel("可将目标文件夹拖入此路径")
+        drop_hint.setProperty("cssClass", "hint")
+        left_layout.addWidget(drop_hint)
 
         self._progress = QProgressBar()
         self._progress.setRange(0, 100)
@@ -407,6 +448,13 @@ class VerifierMainWindow(QMainWindow):
                 "请手动选择正确的目录。\n\n"
                 "提示：您可以通过「浏览...」按钮选择其他目录。"
             )
+
+    def _on_target_path_dropped(self, path: str):
+        self._result_model.clear()
+        self._all_results.clear()
+        self._verify_total = 0
+        self._speed_label.setText("")
+        self._update_stats()
 
 
     def _start_verification(self):
