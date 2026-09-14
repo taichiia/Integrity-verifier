@@ -42,3 +42,12 @@
 - 测试: 55 通过；覆盖 CSV 头部算法、无头部默认值、SFV 回退、Builder 工具菜单到 Step 3 的链路和主题回归。
 - 遗留项: 用户报告的 unknown box shadow 判定为旧打包 Builder 的历史日志；当前源码与主题测试已确认不含该属性。
 - 下一轮计划: QSettings 记住 Builder/Verifier 的主题模式与窗口几何。
+
+## Round 5
+- 上一轮遗留: 无。
+- 候选功能: QSettings 记忆主题/几何; 拖拽目录到验证器; 右键复制完整路径。
+- 选择: QSettings 记忆主题/几何（价值 3 / 成本 2 / 风险 1）。
+- 已完成: `shared/preferences.py` 提供 QSettings 读写；Builder 和 Verifier 在启动时恢复主题与窗口几何，主题切换立即保存，关闭时保存几何；构造器新增可选 `settings` 参数，公共默认行为不变。
+- 测试: 59 通过；覆盖主题读写、非法值回退、Builder/Verifier 主题与几何恢复。
+- 遗留项: 无。
+- 下一轮计划: 拖拽文件夹到 Verifier 目标路径输入框。

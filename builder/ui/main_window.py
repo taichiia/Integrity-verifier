@@ -12,6 +12,13 @@ from builder.ui.step2_hashes import Step2Hashes
 from builder.ui.step3_pack import Step3Pack
 from builder.ui.theme import generate_builder_stylesheet
 from shared.theme import set_theme_mode, get_theme_mode
+from shared.preferences import (
+    create_settings,
+    load_theme_mode,
+    save_theme_mode,
+    restore_window_geometry,
+    save_window_geometry,
+)
 from shared.project import ProjectData, save_project, load_project
 from shared.constants import (
     WINDOW_DEFAULT_WIDTH, WINDOW_DEFAULT_HEIGHT,
@@ -24,18 +31,22 @@ class BuilderMainWindow(QMainWindow):
     project_saved = Signal(str)
     project_loaded = Signal(str)
 
-    def __init__(self):
+    def __init__(self, settings=None):
         super().__init__()
         self._project = ProjectData()
+        self._settings = settings or create_settings()
 
         self.setWindowTitle("文件完整性验证工具 — 开发者端")
         self.setMinimumSize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT)
         self.resize(WINDOW_DEFAULT_WIDTH, WINDOW_DEFAULT_HEIGHT)
-        self.setStyleSheet(generate_builder_stylesheet())
+        saved_mode = load_theme_mode(self._settings)
+        set_theme_mode(saved_mode)
+        self.setStyleSheet(generate_builder_stylesheet(saved_mode))
 
         self._setup_menu()
         self._setup_central()
         self._setup_status()
+        restore_window_geometry(self, self._settings, "builder")
 
         self._step_nav.step_changed.connect(self._on_step_changed)
 
@@ -43,7 +54,12 @@ class BuilderMainWindow(QMainWindow):
             action = QAction(self)
             action.setShortcut(QKeySequence(key))
             action.triggered.connect(lambda checked=False, idx=i: self._on_step_changed(idx))
-            self.addAction(action)
+        self.addAction(action)
+
+    def closeEvent(self, event):
+        save_window_geometry(self, self._settings, "builder")
+        save_theme_mode(self._settings, get_theme_mode())
+        super().closeEvent(event)
 
     def _setup_menu(self):
         mb = self.menuBar()
@@ -229,6 +245,7 @@ class BuilderMainWindow(QMainWindow):
     def _toggle_theme(self):
         new_mode = "dark" if get_theme_mode() == "light" else "light"
         set_theme_mode(new_mode)
+        save_theme_mode(self._settings, new_mode)
         self.setStyleSheet(generate_builder_stylesheet(new_mode))
         self._step_nav.update()
         self._status_label.setText(f"已切换到{'深色' if new_mode == 'dark' else '浅色'}模式")

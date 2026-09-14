@@ -14,6 +14,13 @@ from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QFont, QKeySequence
 from verifier.ui.theme import generate_verifier_stylesheet
 from verifier.report import STATUS_LABELS
 from shared.theme import set_theme_mode, get_theme_mode
+from shared.preferences import (
+    create_settings,
+    load_theme_mode,
+    save_theme_mode,
+    restore_window_geometry,
+    save_window_geometry,
+)
 from shared.constants import (
     SLATE_GRAY, DUST_TAUPE,
     SUCCESS_GREEN, ERROR_RED, WARNING_AMBER, INFO_BLUE,
@@ -147,9 +154,15 @@ class ResultTableView(QTableView):
 
 
 class VerifierMainWindow(QMainWindow):
-    def __init__(self, embedded_config: dict | None = None, parent=None):
+    def __init__(
+        self,
+        embedded_config: dict | None = None,
+        parent=None,
+        settings=None,
+    ):
         super().__init__(parent)
         self._config = embedded_config or {}
+        self._settings = settings or create_settings()
         self._worker = None
         self._all_results: list[dict] = []
         self._verify_started_at: float | None = None
@@ -160,14 +173,22 @@ class VerifierMainWindow(QMainWindow):
         self.setWindowTitle(f"{title}  v{version}")
         self.setMinimumSize(1000, 600)
         self.resize(1100, 650)
-        self.setStyleSheet(generate_verifier_stylesheet())
+        saved_mode = load_theme_mode(self._settings)
+        set_theme_mode(saved_mode)
+        self.setStyleSheet(generate_verifier_stylesheet(saved_mode))
 
         self._setup_ui()
+        restore_window_geometry(self, self._settings, "verifier")
 
         self._resolve_target_path()
 
         if self._auto_start_cb.isChecked():
             self._start_verification()
+
+    def closeEvent(self, event):
+        save_window_geometry(self, self._settings, "verifier")
+        save_theme_mode(self._settings, get_theme_mode())
+        super().closeEvent(event)
 
     def _setup_ui(self):
         view_menu = self.menuBar().addMenu("查看(&V)")
@@ -622,6 +643,7 @@ class VerifierMainWindow(QMainWindow):
     def _toggle_theme(self):
         new_mode = "dark" if get_theme_mode() == "light" else "light"
         set_theme_mode(new_mode)
+        save_theme_mode(self._settings, new_mode)
         self.setStyleSheet(generate_verifier_stylesheet(new_mode))
         self.update()
 
