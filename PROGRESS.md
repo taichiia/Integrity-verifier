@@ -57,3 +57,12 @@
 - Completed: the Verifier target path now accepts directory drops only, ignores file drops, emits a target-path signal, clears stale results and speed state, and shows a visible drop hint.
 - Tests: 62 passing, including directory-only drag acceptance, drop path setting, and result-state clearing.
 - Next: verifier context-menu full-path copy.
+
+## Round 7
+
+- Leftover: none.
+- Candidates: verifier context-menu full-path copy, results in manifest order, multi-checklist support.
+- Selected: verifier context-menu full-path copy (value 3 / cost 1 / risk 1).
+- Completed: result rows now have a Copy Full Path context action; it combines the selected relative path with the configured target directory and writes it to the clipboard.
+- Tests: 63 passing, including full-path composition from target directory.
+- Next: results in manifest order.

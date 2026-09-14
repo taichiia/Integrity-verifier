@@ -627,6 +627,11 @@ class VerifierMainWindow(QMainWindow):
             copy_hash.triggered.connect(lambda: self._copy_cell(idx.row(), 2))
             menu.addAction(copy_hash)
 
+            copy_full_path = QAction("复制完整路径", self)
+            copy_full_path.setToolTip("将目标目录下的完整文件路径复制到剪贴板")
+            copy_full_path.triggered.connect(lambda: self._copy_full_path(idx.row()))
+            menu.addAction(copy_full_path)
+
             open_file = QAction("打开文件位置", self)
             open_file.setToolTip("在 Windows 资源管理器中打开并定位到此文件")
             open_file.triggered.connect(lambda: self._open_file_location(idx.row()))
@@ -642,6 +647,19 @@ class VerifierMainWindow(QMainWindow):
         )
         if data:
             QApplication.clipboard().setText(str(data))
+
+    def _copy_full_path(self, row: int):
+        path = self._result_model.data(
+            self._result_model.index(row, VerifierResultModel.COL_PATH),
+            Qt.ItemDataRole.DisplayRole,
+        )
+        if not path:
+            return
+
+        from PySide6.QtWidgets import QApplication
+        target = self._target_path.text().strip()
+        full = os.path.join(target, str(path))
+        QApplication.clipboard().setText(str(full))
 
     def _open_file_location(self, row: int):
         path = self._result_model.data(
