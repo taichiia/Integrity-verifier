@@ -538,28 +538,19 @@ class Step3Pack(QWidget):
 
     def _external_test(self):
         from builder.ui.widgets.dialogs import ExternalTestDialog
-        from shared.checksum_file import read_csv, read_sfv
+        from shared.checksum_file import load_checksum_entries
         dlg = ExternalTestDialog(self)
         if dlg.exec():
             vals = dlg.get_values()
             cs_path = vals["checksum_path"]
             target_dir = vals["target_dir"]
-            algo = vals["algorithm"]
             if not cs_path or not target_dir:
                 return
             try:
-                if cs_path.lower().endswith(".csv"):
-                    _, entries = read_csv(cs_path)
-                else:
-                    entries = read_sfv(cs_path)
-
-                checksum_entries = [
-                    {"path": p, "hash": h, "status": "ok"}
-                    for p, h in (entries if isinstance(entries[0], tuple) else [(e[0], e[1]) for e in entries])
-                ]
+                checksum_entries, detected_algorithm = load_checksum_entries(cs_path)
                 self._sim_path.setText(target_dir)
                 self._project.checksum_entries = checksum_entries
-                self._project.checksum_algorithm = algo
+                self._project.checksum_algorithm = detected_algorithm
                 self._run_simulation()
             except Exception as e:
                 QMessageBox.critical(self, "错误", f"加载校验文件失败:\n{e}")

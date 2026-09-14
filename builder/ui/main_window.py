@@ -197,9 +197,8 @@ class BuilderMainWindow(QMainWindow):
             QMessageBox.critical(self, "错误", f"保存失败:\n{e}")
 
     def _external_test(self):
-        from builder.ui.widgets.dialogs import ExternalTestDialog
-        dlg = ExternalTestDialog(self)
-        dlg.exec()
+        self._on_step_changed(2)
+        self._step3._external_test()
 
     def _show_guide(self):
         QMessageBox.information(

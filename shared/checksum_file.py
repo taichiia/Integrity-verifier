@@ -64,6 +64,25 @@ def read_sfv(filepath: str) -> list[tuple[str, str]]:
     return entries
 
 
+def load_checksum_entries(
+    filepath: str,
+    fallback_algorithm: str = "sha256",
+) -> tuple[list[dict[str, str]], str]:
+    """Load a checksum file and return normalized entries with its algorithm."""
+    if filepath.lower().endswith(".csv"):
+        algorithm, pairs = read_csv(filepath)
+        return [
+            {"path": rel_path, "hash": digest, "status": "ok"}
+            for rel_path, digest in pairs
+        ], algorithm
+
+    pairs = read_sfv(filepath)
+    return [
+        {"path": rel_path, "hash": digest, "status": "ok"}
+        for rel_path, digest in pairs
+    ], fallback_algorithm
+
+
 def _timestamp() -> str:
     from datetime import datetime
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
