@@ -23,3 +23,13 @@
 - 测试: 46 通过（新增 `test_cli.py` 9 个含子进程端到端与 `--help` 冒烟、`test_verify_worker.py` 新增 exclude_paths 1 个；覆盖成功/篡改/缺失/多余/坏目标/无数据/JSON 全路径）。测试发现并修复 `EmbeddedConfigError.message` 缺失问题。
 - 遗留项: 无。
 - 下一轮计划: 验证耗时与速度统计（verifier GUI 显示用时与文件/秒）。
+
+## 第 3 轮
+
+- 上一轮遗留: 无。
+- 候选功能: ① 验证耗时与速度统计 ② QSettings 主题/几何记忆 ③ 拖拽目录到验证器。
+- 选择: ①（价值 3 / 成本 1 / 风险 1；现有速度标签是从未更新的死 UI）。
+- 已完成: 验证进度中实时显示文件/秒，完成时显示"用时 X 秒 · Y 文件/秒"；提取 `format_verify_stats` 纯函数；修复 `_all_results` 在无校验数据路径下未初始化的边界问题。
+- 测试: 50 通过（新增 `test_verifier_stats.py` 4 个；覆盖带文件/零文件/零耗时边界与 GUI 完成回调更新标签）。
+- 遗留项: 无。
+- 下一轮计划: QSettings 记住主题模式与窗口几何（builder + verifier）。

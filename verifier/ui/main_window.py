@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 
 from PySide6.QtCore import Qt, Signal, QAbstractTableModel, QModelIndex
 from PySide6.QtWidgets import (
@@ -19,6 +20,13 @@ from shared.constants import (
     SPACING_MD, SPACING_LG,
     FONT_BODY_SIZE, FONT_EYEBROW_SIZE, FONT_MONO_SIZE,
 )
+
+
+def format_verify_stats(elapsed: float, total: int) -> str:
+    rate = total / elapsed if elapsed > 0 and total > 0 else 0.0
+    if total > 0:
+        return f"用时 {elapsed:.1f} 秒 · {rate:.1f} 文件/秒"
+    return f"用时 {elapsed:.1f} 秒"
 
 
 class VerifierResultModel(QAbstractTableModel):
@@ -143,6 +151,9 @@ class VerifierMainWindow(QMainWindow):
         super().__init__(parent)
         self._config = embedded_config or {}
         self._worker = None
+        self._all_results: list[dict] = []
+        self._verify_started_at: float | None = None
+        self._verify_total = 0
 
         title = self._config.get("title", "文件完整性验证器")
         version = self._config.get("version", "1.0.0")
@@ -400,6 +411,8 @@ class VerifierMainWindow(QMainWindow):
         self._stop_btn.setEnabled(True)
         self._progress.setValue(0)
         self._current_label.setText("正在扫描...")
+        self._speed_label.setText("")
+        self._verify_started_at = time.perf_counter()
         self._all_results = []
 
         paths_to_hash = []
@@ -440,6 +453,7 @@ class VerifierMainWindow(QMainWindow):
                     })
 
         total = len(paths_to_hash)
+        self._verify_total = total
         self._result_model.clear()
         self._update_stats()
 
@@ -462,6 +476,9 @@ class VerifierMainWindow(QMainWindow):
     def _on_verify_progress(self, completed: int, total: int, path: str):
         self._progress.setValue(int(completed / total * 100) if total else 0)
         self._current_label.setText(os.path.basename(path))
+        if self._verify_started_at is not None:
+            elapsed = time.perf_counter() - self._verify_started_at
+            self._speed_label.setText(format_verify_stats(elapsed, completed))
 
     def _on_verify_file(self, path: str, digest: str, error: str,
                         expected_map: dict, target_dir: str):
@@ -491,6 +508,9 @@ class VerifierMainWindow(QMainWindow):
         self._stop_btn.setEnabled(False)
         self._progress.setValue(100)
         self._current_label.setText("验证完成")
+        if self._verify_started_at is not None:
+            elapsed = time.perf_counter() - self._verify_started_at
+            self._speed_label.setText(format_verify_stats(elapsed, self._verify_total))
 
         self._filter_results()
 
