@@ -120,7 +120,7 @@ class VerifierResultModel(QAbstractTableModel):
 
     def clear(self):
         self.beginResetModel()
-        self._results.clear()
+        self._results = []
         self.endResetModel()
 
 

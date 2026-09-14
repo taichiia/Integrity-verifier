@@ -54,7 +54,7 @@ class BuilderMainWindow(QMainWindow):
             action = QAction(self)
             action.setShortcut(QKeySequence(key))
             action.triggered.connect(lambda checked=False, idx=i: self._on_step_changed(idx))
-        self.addAction(action)
+            self.addAction(action)
 
     def closeEvent(self, event):
         save_window_geometry(self, self._settings, "builder")

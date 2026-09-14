@@ -93,7 +93,7 @@ class FileTableModel(QAbstractTableModel):
 
     def clear(self):
         self.beginResetModel()
-        self._files.clear()
+        self._files = []
         self.endResetModel()
 
     def get_checked(self) -> list[dict]:

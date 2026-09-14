@@ -94,3 +94,12 @@
 - User simulation: Builder Step 2 was exercised through scan, selection, step navigation, and Start; successful files become OK and a file missing during hashing becomes ERR. Verifier JSON export, export cancellation, and the About repository shortcut were also exercised.
 - Tests: 75 passing, including real UI-flow tests for Step 2 and UI-level tests for JSON export and About.
 - Next: Round 11 code review and safety pass.
+
+## Round 11
+
+- Leftover: none.
+- Candidates: result-model reset aliasing, shortcut registration, table-model reset aliasing.
+- Selected: result-model reset aliasing and keyboard registration (value 4 / cost 1 / risk 1).
+- Completed: Verifier and Builder table models now replace their internal lists on clear instead of mutating shared caller-owned lists; Builder registers all three step shortcuts instead of only Ctrl+3.
+- Tests: 78 passing, including aliasing regressions and step-shortcut registration.
+- Next: Round 12 performance pass.
