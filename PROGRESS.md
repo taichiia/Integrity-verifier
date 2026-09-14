@@ -112,3 +112,12 @@
 - Completed: Builder Step 2 now maps entries to manifest rows and updates one finished line directly instead of rebuilding and rescanning the full manifest for every file.
 - Tests: 79 passing, including a 100-entry indexed manifest update and row-level verification.
 - Next: Round 13 UI validation pass.
+
+## Round 13
+
+- Leftover: none.
+- Candidates: stable mono result fonts, export tooltip accuracy, accessible result text.
+- Selected: stable mono result fonts and export tooltip accuracy (value 3 / cost 1 / risk 1).
+- Completed: Verifier path/hash columns now use the shared mono font without allocating a temporary table view; the export tooltip now names CSV, TXT, and JSON.
+- Tests: 80 passing, including result-column font validation.
+- Next: FINAL_REPORT.md.

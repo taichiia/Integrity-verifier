@@ -27,6 +27,7 @@ from shared.constants import (
     SUCCESS_GREEN, ERROR_RED, WARNING_AMBER, INFO_BLUE,
     SPACING_MD, SPACING_LG,
     FONT_BODY_SIZE, FONT_EYEBROW_SIZE, FONT_MONO_SIZE,
+    FONT_FAMILY_MONO,
 )
 
 
@@ -85,9 +86,8 @@ class VerifierResultModel(QAbstractTableModel):
             return colors.get(row["status"], QColor(get_palette()["text"]))
 
         if role == Qt.ItemDataRole.FontRole:
-            if col == self.COL_PATH:
-                f = QTableView().font()
-                return f
+            if col in (self.COL_PATH, self.COL_EXPECTED, self.COL_ACTUAL):
+                return QFont(FONT_FAMILY_MONO, FONT_MONO_SIZE)
 
         if role == Qt.ItemDataRole.ToolTipRole:
             if col == self.COL_PATH:
@@ -409,7 +409,7 @@ class VerifierMainWindow(QMainWindow):
 
         export_btn = QPushButton("导出报告")
         export_btn.setProperty("cssClass", "secondary")
-        export_btn.setToolTip("将验证结果导出为 CSV 或 TXT 格式的报告文件")
+        export_btn.setToolTip("将验证结果导出为 CSV、TXT 或 JSON 格式的报告文件")
         export_btn.clicked.connect(self._export_report)
         bottom.addWidget(export_btn)
 

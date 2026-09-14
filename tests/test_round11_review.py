@@ -1,3 +1,5 @@
+from PySide6.QtCore import Qt
+
 from builder.ui.main_window import BuilderMainWindow
 from builder.ui.widgets.file_table import FileTableModel
 from shared.preferences import create_settings
@@ -41,3 +43,16 @@ def test_builder_registers_all_step_shortcuts(qapp, tmp_path):
     finally:
         window.close()
         set_theme_mode("light")
+
+
+def test_verifier_hash_columns_use_stable_mono_font(qapp):
+    model = VerifierResultModel()
+    model.set_results([{
+        "path": "a.txt", "status": "pass", "expected": "abc", "actual": "abc",
+    }])
+
+    for column in (model.COL_PATH, model.COL_EXPECTED, model.COL_ACTUAL):
+        font = model.data(model.index(0, column), Qt.ItemDataRole.FontRole)
+        assert font is not None
+        assert font.family() == "JetBrains Mono"
+        assert font.pointSize() == 12
