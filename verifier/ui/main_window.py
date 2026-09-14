@@ -1,7 +1,5 @@
 import os
 import sys
-from datetime import datetime
-from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal, QAbstractTableModel, QModelIndex
 from PySide6.QtWidgets import (
@@ -13,6 +11,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QFont, QKeySequence
 
 from verifier.ui.theme import generate_verifier_stylesheet
+from verifier.report import STATUS_LABELS
 from shared.theme import set_theme_mode, get_theme_mode
 from shared.constants import (
     SLATE_GRAY, DUST_TAUPE,
@@ -26,16 +25,11 @@ class VerifierResultModel(QAbstractTableModel):
     COL_STATUS = 0
     COL_PATH = 1
     COL_EXPECTED = 2
+    COL_ACTUAL = 3
 
-    HEADERS = ["状态", "文件路径", "期望哈希值"]
+    HEADERS = ["状态", "文件路径", "期望哈希值", "实际哈希值"]
 
-    STATUS_ICONS = {
-        "pass": "通过",
-        "fail": "失败",
-        "missing": "缺失",
-        "extra": "多余",
-        "error": "错误",
-    }
+    STATUS_ICONS = STATUS_LABELS
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -45,7 +39,7 @@ class VerifierResultModel(QAbstractTableModel):
         return len(self._results)
 
     def columnCount(self, parent=QModelIndex()):
-        return 3
+        return 4
 
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid():
@@ -60,6 +54,8 @@ class VerifierResultModel(QAbstractTableModel):
                 return row["path"]
             elif col == self.COL_EXPECTED:
                 return row.get("expected", "")
+            elif col == self.COL_ACTUAL:
+                return row.get("actual", "")
 
         if role == Qt.ItemDataRole.ForegroundRole:
             colors = {
@@ -82,6 +78,8 @@ class VerifierResultModel(QAbstractTableModel):
                 return row["path"]
             elif col == self.COL_EXPECTED:
                 return f"期望: {row.get('expected', '')}"
+            elif col == self.COL_ACTUAL:
+                return f"实际: {row.get('actual', '')}"
             elif col == self.COL_STATUS:
                 tips = {
                     "pass": "文件完整，哈希值与记录一致",
@@ -293,6 +291,7 @@ class VerifierMainWindow(QMainWindow):
         hh.resizeSection(VerifierResultModel.COL_STATUS, 70)
         hh.setSectionResizeMode(VerifierResultModel.COL_PATH, QHeaderView.ResizeMode.Stretch)
         hh.setSectionResizeMode(VerifierResultModel.COL_EXPECTED, QHeaderView.ResizeMode.ResizeToContents)
+        hh.setSectionResizeMode(VerifierResultModel.COL_ACTUAL, QHeaderView.ResizeMode.ResizeToContents)
 
         vh = self._result_table.verticalHeader()
         vh.setVisible(False)
@@ -414,6 +413,7 @@ class VerifierMainWindow(QMainWindow):
                 self._all_results.append({
                     "path": entry["path"], "status": "missing",
                     "expected": entry.get("hash", ""),
+                    "actual": "",
                 })
 
         manifest_paths = set(
@@ -435,7 +435,8 @@ class VerifierMainWindow(QMainWindow):
                     except ValueError:
                         rel = full
                     self._all_results.append({
-                        "path": rel, "status": "extra", "expected": "",
+                        "path": rel, "status": "extra",
+                        "expected": "", "actual": "",
                     })
 
         total = len(paths_to_hash)
@@ -481,6 +482,7 @@ class VerifierMainWindow(QMainWindow):
         self._all_results.append({
             "path": rel, "status": status,
             "expected": expected,
+            "actual": "" if error else digest,
         })
 
     def _on_verify_done(self):
@@ -568,7 +570,7 @@ class VerifierMainWindow(QMainWindow):
             QMessageBox.information(self, "无数据", "尚无验证结果可导出。请先执行验证。")
             return
 
-        path, fmt = QFileDialog.getSaveFileName(
+        path, _ = QFileDialog.getSaveFileName(
             self, "导出报告", "验证报告.csv",
             "CSV 文件 (*.csv);;文本文件 (*.txt);;所有文件 (*)"
         )
@@ -576,27 +578,11 @@ class VerifierMainWindow(QMainWindow):
             return
 
         try:
+            from verifier.report import write_csv_report, write_txt_report
             if path.endswith(".csv"):
-                import csv
-                with open(path, "w", newline="", encoding="utf-8-sig") as f:
-                    writer = csv.writer(f)
-                    writer.writerow(["状态", "文件路径", "期望哈希值"])
-                    for r in self._all_results:
-                        writer.writerow([r["status"], r["path"], r.get("expected", "")])
+                write_csv_report(path, self._all_results, self._target_path.text())
             else:
-                with open(path, "w", encoding="utf-8") as f:
-                    f.write(f"文件完整性验证报告\n")
-                    f.write(f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                    f.write(f"目标路径: {self._target_path.text()}\n")
-                    f.write("-" * 60 + "\n")
-                    for r in self._all_results:
-                        status = VerifierResultModel.STATUS_ICONS.get(r["status"], "?")
-                        f.write(f"[{status}] {r['path']}\n")
-
-                    passed = sum(1 for r in self._all_results if r["status"] == "pass")
-                    total = len(self._all_results)
-                    f.write("-" * 60 + "\n")
-                    f.write(f"汇总: {passed}/{total} 通过, {total - passed} 项异常\n")
+                write_txt_report(path, self._all_results, self._target_path.text())
 
             QMessageBox.information(self, "导出成功", f"报告已保存到:\n{path}")
         except Exception as e:
