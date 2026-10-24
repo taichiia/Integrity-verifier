@@ -14,6 +14,8 @@ use crate::manifest::normalize_relative_path;
 
 const PROGRESS_EVERY: usize = 256;
 const PREHASH_BATCH: usize = 64;
+const FIT_ARTIFACT_SUFFIXES: [&str; 3] = [".fitrec", ".fitrec.pub", ".fitrec.parity"];
+const FIT_SUPPORT_DIRECTORY: &str = ".fit-support";
 
 #[derive(Clone, Default)]
 pub struct ScanOptions {
@@ -59,6 +61,24 @@ impl Default for PreHashOptions {
 }
 
 pub type PreHashProgressCallback = Arc<dyn Fn(usize, usize, &str) + Send + Sync>;
+
+pub fn is_fit_artifact(file_name: &str) -> bool {
+    let name = file_name.to_ascii_lowercase();
+    FIT_ARTIFACT_SUFFIXES
+        .iter()
+        .any(|suffix| name.ends_with(suffix))
+}
+
+fn is_support_directory_file(path: &Path, root: &Path) -> bool {
+    path.strip_prefix(root)
+        .ok()
+        .and_then(|relative| relative.components().next())
+        .is_some_and(|component| {
+            component
+                .as_os_str()
+                .eq_ignore_ascii_case(FIT_SUPPORT_DIRECTORY)
+        })
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PreHashEntry {
@@ -114,6 +134,12 @@ pub fn scan_and_prehash(
             }
 
             let path = entry.path();
+            if is_support_directory_file(path, &walk_root) {
+                continue;
+            }
+            if entry.file_name().to_str().is_some_and(is_fit_artifact) {
+                continue;
+            }
             let relative = match path.strip_prefix(&walk_root) {
                 Ok(relative) => relative,
                 Err(error) => {
@@ -225,6 +251,12 @@ pub fn scan_directory(root: &Path, options: &ScanOptions) -> Result<ScanReport> 
         }
 
         let path = entry.path();
+        if is_support_directory_file(path, root) {
+            continue;
+        }
+        if entry.file_name().to_str().is_some_and(is_fit_artifact) {
+            continue;
+        }
         let relative = path
             .strip_prefix(root)
             .map_err(|error| CoreError::Io(std::io::Error::other(error.to_string())))?;

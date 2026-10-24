@@ -27,6 +27,7 @@ fn main() {
             sign_checksum_file,
             verify_checksum_file,
             locate_verifier,
+            prepare_support_directory,
             pack_native_verifier,
             verify_document,
             cancel_verification,

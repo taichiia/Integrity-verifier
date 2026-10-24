@@ -104,7 +104,7 @@ pub fn run_verification(
         .iter()
         .filter_map(|path| normalize_relative_path(path).ok())
         .map(|path| path.to_ascii_lowercase())
-        .collect::<HashSet<_>>();
+        .collect::<Vec<_>>();
 
     let target = target_dir.canonicalize().map_err(CoreError::Io)?;
     let absolute_excludes = options
@@ -152,7 +152,17 @@ pub fn run_verification(
 
         if is_dir {
             let name = entry.file_name().to_string_lossy().to_string();
+            let relative_dir = path
+                .strip_prefix(&target)
+                .ok()
+                .and_then(|relative| normalize_relative_path(&relative.to_string_lossy()).ok())
+                .map(|value| value.to_ascii_lowercase());
             if options.exclude_rules.excludes_directory(&name)
+                || relative_dir.is_some_and(|relative| {
+                    ignored_paths.iter().any(|ignored| {
+                        relative == *ignored || relative.starts_with(&format!("{ignored}/"))
+                    })
+                })
                 || absolute_excludes.contains(&full_key)
             {
                 walker.skip_current_dir();
@@ -176,7 +186,10 @@ pub fn run_verification(
             .map_err(|error| CoreError::Io(std::io::Error::other(error.to_string())))?;
         let relative = relative.to_string_lossy().replace('\\', "/");
         let normalized = normalize_relative_path(&relative)?;
-        if ignored_paths.contains(&normalized.to_ascii_lowercase()) {
+        if ignored_paths.iter().any(|ignored| {
+            let normalized_lower = normalized.to_ascii_lowercase();
+            normalized_lower == *ignored || normalized_lower.starts_with(&format!("{ignored}/"))
+        }) {
             continue;
         }
         if manifest_paths.contains(&normalized) {

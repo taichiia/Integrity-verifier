@@ -213,7 +213,10 @@ fn source_plans(directory: &Path, document: &FitDocument) -> Result<Vec<SourcePl
             return Err(CoreError::Manifest("recovery source is not a file"));
         }
         if entry.size.is_some_and(|size| size != metadata.len()) {
-            return Err(CoreError::Integrity);
+            return Err(CoreError::SourceChanged {
+                path: entry.path.clone(),
+                reason: "file size changed",
+            });
         }
         plans.push(SourcePlan {
             path: entry.path.clone(),
@@ -562,8 +565,17 @@ fn generate_single_plans(
             }
 
             let document_hash = crate::manifest::bytes_to_hex(&hasher.finalize());
-            if actual_size != plan.source.size || document_hash != plan.source.hash {
-                return Err(CoreError::Integrity);
+            if actual_size != plan.source.size {
+                return Err(CoreError::SourceChanged {
+                    path: plan.source.path.clone(),
+                    reason: "file size changed while generating parity",
+                });
+            }
+            if document_hash != plan.source.hash {
+                return Err(CoreError::SourceChanged {
+                    path: plan.source.path.clone(),
+                    reason: "file content changed after hashing",
+                });
             }
             Ok(GeneratedSingle {
                 path: plan.source.path.clone(),
@@ -614,8 +626,17 @@ fn generate_cross_plans(
                     let document_hash = crate::manifest::bytes_to_hex(
                         &std::mem::take(&mut hashers[lane_index]).finalize(),
                     );
-                    if source.size != 0 || document_hash != source.hash {
-                        return Err(CoreError::Integrity);
+                    if source.size != 0 {
+                        return Err(CoreError::SourceChanged {
+                            path: source.path.clone(),
+                            reason: "empty file size changed",
+                        });
+                    }
+                    if document_hash != source.hash {
+                        return Err(CoreError::SourceChanged {
+                            path: source.path.clone(),
+                            reason: "file content changed after hashing",
+                        });
                     }
                 }
             } else {
@@ -695,8 +716,17 @@ fn generate_cross_plans(
                     let document_hash = crate::manifest::bytes_to_hex(
                         &std::mem::take(&mut hashers[lane_index]).finalize(),
                     );
-                    if actual_sizes[lane_index] != source.size || document_hash != source.hash {
-                        return Err(CoreError::Integrity);
+                    if actual_sizes[lane_index] != source.size {
+                        return Err(CoreError::SourceChanged {
+                            path: source.path.clone(),
+                            reason: "file size changed while generating parity",
+                        });
+                    }
+                    if document_hash != source.hash {
+                        return Err(CoreError::SourceChanged {
+                            path: source.path.clone(),
+                            reason: "file content changed after hashing",
+                        });
                     }
                 }
             }

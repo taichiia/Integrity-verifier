@@ -41,7 +41,8 @@ FIT 不是整盘备份工具；它只保护恢复档案中显式列出的文件�
 - 使用 PBKDF2-SHA256 与 AES-256-GCM 加密/解密校验文件。
 - 生成签名的 `.fitrec`、公钥 `.fitrec.pub`，以及恢复档案 `.fitrec.parity`。
 - 配置变化时实时估计恢复档案体积和可恢复文件百分比。
-- 将原生 Verifier 与记录、公钥、可选恢复档案一起打包。
+- 一键生成发布包：自动创建 `.fit-support`，自动生成并打包 `checksums.csv`，无需手动选择清单输出位置。
+- 高级模式下可将原生 Verifier 与记录、公钥、可选恢复档案一起打包。
 - 分发前可对目标目录执行模拟验证。
 - 保存并重新打开 `.fitbuilder` 项目。
 - 首次启动时提供可跳过的高亮教程，先说明软件用途，再解释记录、公钥、恢复档案、分片和恢复模式。
@@ -49,7 +50,8 @@ FIT 不是整盘备份工具；它只保护恢复档案中显式列出的文件�
 #### Verifier
 
 - 使用 `.fitrec` 和 `.fitrec.pub` 验证目标目录。
-- 支持选择校验清单。
+- 启动时自动发现 Verifier 同级的 `.fit-support`，自动加载记录、公钥和恢复档案。
+- 支持选择校验清单；一键发布后通常无需手动选择。
 - 实时显示通过/失败/缺失/多余计数和详细结果表。
 - 导出 JSON 和 CSV 验证报告。
 - 从 `.fitrec.parity` 恢复损坏或缺失文件。
@@ -73,15 +75,29 @@ python build.py --rust
 
 GUI EXE 是单文件 Windows 应用，需要系统 WebView2 运行时。Windows 10/11 通常已经自带。
 
+一键发布包的推荐结构如下：
+
+```text
+release/
+  FileIntegrityVerifierRust.exe
+  .fit-support/
+    release.fitrec
+    release.fitrec.pub
+    release.fitrec.parity   # 只有需要恢复时才包含
+    checksums.csv           # 一键发布时自动生成
+```
+
+Verifier 启动时会检查自己所在目录和当前工作目录下的 `.fit-support`；只要目录中只有一个 `.fitrec`，就会自动加载记录、公钥和可选恢复档案，并把默认验证根目录设为发布目录。
+
 应发送哪些文件取决于接收方是否需要修复能力：
 
 | 场景 | 发送 | 不要发送 |
 | --- | --- | --- |
-| 仅验证 | `FileIntegrityVerifierRust.exe`、`.fitrec`、`.fitrec.pub` | 私钥 |
-| 验证加恢复 | `FileIntegrityVerifierRust.exe`、`.fitrec`、`.fitrec.pub`、`.fitrec.parity` | 私钥 |
+| 仅验证 | Verifier EXE、`.fit-support/release.fitrec`、`.fit-support/release.fitrec.pub` | 私钥 |
+| 验证加恢复 | Verifier EXE、`.fit-support` 目录 | 私钥 |
 | 继续创作 | `.fitbuilder`、源文件、私钥 | 永远不要把私钥交给接收方 |
 
-Builder 可以直接打包前两种场景：选择 `.fitrec`、指定输出目录，然后点击“打包验证器”。如果没有选择外部 Verifier EXE，Builder 会写入内嵌的 Verifier 载荷。
+Builder 可以直接生成前两种场景：点击“一键生成并打包”即可。CSV 清单固定写入 `.fit-support/checksums.csv`；高级配置仍允许手动选择已有清单和外部 Verifier EXE。如果没有选择外部 Verifier EXE，Builder 会写入内嵌的 Verifier 载荷。
 
 典型的 `release.fitrec` 分发包如下：
 
@@ -124,7 +140,7 @@ Verifier 永远不会直接覆盖用户原始文件；修复内容先写入选�
 4. 生成或选择 Ed25519 私钥。
 5. 配置恢复模式、分片数量和分片大小。
 6. 点击“生成记录和纠错档”。
-7. 点击“打包验证器”，准备接收方分发包。
+7. 点击“一键生成并打包”，准备接收方分发包。
 
 Builder 会显示生成的记录、公钥和恢复档案路径。公钥总是写在记录旁边。
 
@@ -300,7 +316,8 @@ FIT is not a whole-disk backup tool. It protects files explicitly listed in a re
 - Encrypts and decrypts checksum files with PBKDF2-SHA256 and AES-256-GCM.
 - Generates signed `.fitrec`, public key `.fitrec.pub`, and recovery archive `.fitrec.parity`.
 - Estimates recovery archive size and recoverable-file percentage while settings change.
-- Packages the native Verifier with the record, public key, and optional recovery archive.
+- Creates a one-click release package: it automatically creates `.fit-support`, generates `checksums.csv`, and packages the manifest without asking the user to choose a manifest output path.
+- Advanced mode can also package the native Verifier with the record, public key, and optional recovery archive.
 - Simulates verification against a target directory before distribution.
 - Saves and reopens `.fitbuilder` projects.
 - Shows a skippable first-launch guided tour that explains the tool's purpose, record artifacts, recovery, and shard concepts, with a top-bar button to replay it.
@@ -308,7 +325,8 @@ FIT is not a whole-disk backup tool. It protects files explicitly listed in a re
 #### Verifier
 
 - Verifies a target directory against `.fitrec` and `.fitrec.pub`.
-- Supports checklist selection.
+- Automatically discovers `.fit-support` beside the Verifier and loads the record, public key, and recovery archive.
+- Supports checklist selection; this is usually unnecessary after a one-click release.
 - Shows live passed/failed/missing/extra counters and a detailed result table.
 - Exports JSON and CSV verification reports.
 - Recovers damaged or missing files from `.fitrec.parity` into a separate output directory.
@@ -332,15 +350,29 @@ The script builds the Verifier first, embeds it into the Builder release, then c
 
 The GUI EXEs are single-file Windows applications and require the system WebView2 runtime. Modern Windows 10/11 installations normally include it.
 
+The recommended one-click release layout is:
+
+```text
+release/
+  FileIntegrityVerifierRust.exe
+  .fit-support/
+    release.fitrec
+    release.fitrec.pub
+    release.fitrec.parity   # included only when repair is required
+    checksums.csv           # generated automatically by one-click release
+```
+
+At startup, Verifier checks `.fit-support` beside its executable and in the current working directory. When that folder contains one `.fitrec`, it loads the record, public key, and optional recovery archive automatically, and defaults its verification root to the release directory.
+
 The exact distribution set depends on whether the recipient only verifies data or also needs repair capability:
 
 | Scenario | Send | Do not send |
 | --- | --- | --- |
-| Verification only | `FileIntegrityVerifierRust.exe`, `.fitrec`, `.fitrec.pub` | Private key |
-| Verification plus repair | `FileIntegrityVerifierRust.exe`, `.fitrec`, `.fitrec.pub`, `.fitrec.parity` | Private key |
+| Verification only | Verifier EXE, `.fit-support/release.fitrec`, `.fit-support/release.fitrec.pub` | Private key |
+| Verification plus repair | Verifier EXE, `.fit-support` directory | Private key |
 | Continued authoring | `.fitbuilder`, source files, private key | Never distribute the private key |
 
-The Builder can package the first two scenarios directly. Select a `.fitrec`, choose an output directory, and click **Package Verifier**. If no external Verifier EXE is selected, Builder writes its embedded Verifier payload into the package.
+Builder creates the first two scenarios directly. Click **Create and Package Release**; the CSV manifest is written to `.fit-support/checksums.csv`. Advanced settings still allow selecting an existing manifest and an external Verifier EXE. If no external Verifier EXE is selected, Builder writes its embedded Verifier payload into the package.
 
 For a typical `release.fitrec`, the package looks like:
 
@@ -383,7 +415,7 @@ Verifier never writes repaired data over the original user files. Repairs are wr
 4. Generate or select an Ed25519 private key.
 5. Configure recovery mode, shard count, and shard size.
 6. Click **Generate Record and Recovery Archive**.
-7. Use **Package Verifier** to prepare the recipient package.
+7. Use **Create and Package Release** to prepare the recipient package.
 
 Builder displays the generated record, public key, and parity paths. The public key is always written beside the record.
 

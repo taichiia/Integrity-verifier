@@ -78,6 +78,43 @@ fn verification_reports_pass_fail_missing_and_extra() {
 }
 
 #[test]
+fn ignored_path_excludes_directory_prefix() {
+    let directory = tempfile::tempdir().unwrap();
+    fs::write(directory.path().join("pass.txt"), b"pass").unwrap();
+    fs::create_dir_all(directory.path().join(".fit-support")).unwrap();
+    fs::write(
+        directory.path().join(".fit-support/release.fitrec"),
+        b"record",
+    )
+    .unwrap();
+
+    let mut checklists = BTreeMap::new();
+    checklists.insert(
+        "default".to_string(),
+        vec![entry("pass.txt", &sha256("pass"))],
+    );
+    let document = FitDocument {
+        format_version: 1,
+        algorithm: "sha256".to_string(),
+        active_checklist: "default".to_string(),
+        checklists,
+        exclude_paths: Vec::new(),
+        exclude_rules: serde_json::Map::new(),
+        metadata: serde_json::Map::new(),
+    };
+
+    let options = VerificationOptions {
+        ignored_paths: vec![".fit-support".to_string()],
+        ..Default::default()
+    };
+    let report = run_verification(&document, directory.path(), &options).unwrap();
+
+    assert_eq!(report.total, 1);
+    assert_eq!(report.passed, 1);
+    assert_eq!(report.extra_count, 0);
+}
+
+#[test]
 fn exclude_rules_hide_files_and_directories() {
     let directory = tempfile::tempdir().unwrap();
     fs::write(directory.path().join("app.txt"), b"app").unwrap();

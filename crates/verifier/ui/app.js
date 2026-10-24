@@ -42,6 +42,25 @@ function renderInitialStates() {
 document.body.dataset.theme = localStorage.getItem("fit-verifier-theme") || "light";
 renderInitialStates();
 
+(async () => {
+  try {
+    const bundle = await invoke("discover_record_bundle");
+    if (!bundle) return;
+    recordPath.value = bundle.recordPath;
+    publicKeyPath.value = bundle.publicKeyPath;
+    targetPath.value = bundle.rootPath;
+    if (bundle.recoveryPath) {
+      recoveryPath.value = bundle.recoveryPath;
+      recoveryTargetPath.value = bundle.rootPath;
+      document.querySelector("#inspectRecovery").click();
+    }
+    sourceStatus.textContent = "已自动加载 .fit-support 记录；目标目录默认 Verifier 所在目录";
+    document.querySelector("#inspectRecord").click();
+  } catch (error) {
+    sourceStatus.textContent = String(error);
+  }
+})();
+
 themeToggle.addEventListener("click", () => {
   const next = document.body.dataset.theme === "dark" ? "light" : "dark";
   document.body.dataset.theme = next;

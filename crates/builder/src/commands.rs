@@ -18,6 +18,7 @@ use tauri_plugin_dialog::DialogExt;
 
 const MAX_PATH_LENGTH: usize = 4096;
 const PREHASH_BACKGROUND_BATCH: usize = 64;
+const SUPPORT_DIRECTORY: &str = ".fit-support";
 
 fn default_project_shard_size() -> u32 {
     1024 * 1024
@@ -115,6 +116,60 @@ fn file_recovery_options(args: &FitRecArgs) -> Result<FileRecoveryOptions, Strin
         shard_size: args.shard_size,
         mode: args.mode,
     })
+}
+
+fn output_is_inside_source(output: &Path, source: &Path) -> bool {
+    let Ok(source) = source.canonicalize() else {
+        return false;
+    };
+    let output_parent = output.parent().unwrap_or(output);
+    let output_parent = output_parent
+        .canonicalize()
+        .unwrap_or_else(|_| output_parent.to_path_buf());
+    output_parent.starts_with(&source)
+}
+
+fn relative_to_source(path: &Path, source: &Path) -> Option<String> {
+    let canonical_source = source.canonicalize().ok()?;
+    let canonical_path = if path.exists() {
+        path.canonicalize().ok()?
+    } else {
+        let parent = path.parent()?.canonicalize().ok()?;
+        parent.join(path.file_name()?)
+    };
+    canonical_path
+        .strip_prefix(&canonical_source)
+        .ok()
+        .map(|relative| relative.to_string_lossy().replace('\\', "/"))
+}
+
+fn append_fit_output_exclusions(document: &mut FitDocument, source: &Path, output: &Path) {
+    if !output_is_inside_source(output, source) {
+        return;
+    }
+    let output_relative = relative_to_source(output, source);
+    if output_relative
+        .as_deref()
+        .is_some_and(|relative| relative.starts_with(&format!("{SUPPORT_DIRECTORY}/")))
+    {
+        if !document
+            .exclude_paths
+            .iter()
+            .any(|path| path == SUPPORT_DIRECTORY)
+        {
+            document.exclude_paths.push(SUPPORT_DIRECTORY.to_string());
+        }
+        return;
+    }
+    let public_key = PathBuf::from(format!("{}.pub", output.to_string_lossy()));
+    let recovery = PathBuf::from(format!("{}.parity", output.to_string_lossy()));
+    for path in [output, &public_key, &recovery] {
+        if let Some(relative) = relative_to_source(path, source)
+            && !document.exclude_paths.contains(&relative)
+        {
+            document.exclude_paths.push(relative);
+        }
+    }
 }
 
 #[tauri::command]
@@ -532,6 +587,8 @@ pub struct PackArgs {
     pub output_directory: String,
     pub record_path: String,
     pub verifier_path: String,
+    #[serde(default)]
+    pub checksum_path: Option<String>,
 }
 
 const BUILTIN_VERIFIER: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/verifier.exe"));
@@ -562,6 +619,12 @@ pub fn pack_native_verifier(args: PackArgs) -> Result<String, String> {
             public_key.display()
         ));
     }
+    let checksum = args
+        .checksum_path
+        .as_deref()
+        .filter(|path| !path.trim().is_empty())
+        .map(validate_existing_file)
+        .transpose()?;
 
     let verifier_name = verifier
         .file_name()
@@ -578,10 +641,42 @@ pub fn pack_native_verifier(args: PackArgs) -> Result<String, String> {
         .ok_or_else(|| "invalid recovery archive".to_string())?;
 
     let final_verifier = copy_if_needed(&verifier, &output.join(verifier_name), "verifier")?;
-    copy_if_needed(&record, &output.join(record_name), "record")?;
-    copy_if_needed(&public_key, &output.join(public_key_name), "public key")?;
+    let support_directory = output.join(SUPPORT_DIRECTORY);
+    std::fs::create_dir_all(&support_directory)
+        .map_err(|error| format!("unable to create support directory: {error}"))?;
+    copy_if_needed(&record, &support_directory.join(record_name), "record")?;
+    copy_if_needed(
+        &public_key,
+        &support_directory.join(public_key_name),
+        "public key",
+    )?;
     if recovery.is_file() {
-        copy_if_needed(&recovery, &output.join(recovery_name), "recovery archive")?;
+        copy_if_needed(
+            &recovery,
+            &support_directory.join(recovery_name),
+            "recovery archive",
+        )?;
+    }
+    if let Some(checksum) = checksum {
+        let checksum_name = checksum
+            .file_name()
+            .ok_or_else(|| "invalid checksum file".to_string())?;
+        copy_if_needed(
+            &checksum,
+            &support_directory.join(checksum_name),
+            "checksum list",
+        )?;
+        let signature = PathBuf::from(format!("{}.sig", checksum.to_string_lossy()));
+        if signature.is_file() {
+            let signature_name = signature
+                .file_name()
+                .ok_or_else(|| "invalid checksum signature".to_string())?;
+            copy_if_needed(
+                &signature,
+                &support_directory.join(signature_name),
+                "checksum signature",
+            )?;
+        }
     }
     Ok(final_verifier
         .parent()
@@ -597,6 +692,16 @@ pub fn locate_verifier() -> Result<Option<String>, String> {
         return Ok(Some(verifier.to_string_lossy().to_string()));
     }
     Ok(has_builtin_verifier().then(|| BUILTIN_VERIFIER_MARKER.to_string()))
+}
+
+#[tauri::command]
+pub fn prepare_support_directory(output_directory: String) -> Result<String, String> {
+    let output = validate_existing_directory(&output_directory)
+        .map_err(|error| format!("release directory: {error}"))?;
+    let support = output.join(SUPPORT_DIRECTORY);
+    std::fs::create_dir_all(&support)
+        .map_err(|error| format!("unable to create support directory: {error}"))?;
+    Ok(support.to_string_lossy().to_string())
 }
 
 fn has_builtin_verifier() -> bool {
@@ -751,7 +856,10 @@ pub async fn generate_fitrec_command(
     if public_key == private_key {
         return Err("public key and private key paths must differ".to_string());
     }
-    args.document
+    let recovery_path = PathBuf::from(format!("{}.parity", output.to_string_lossy()));
+    let mut document = args.document;
+    append_fit_output_exclusions(&mut document, &source_directory, &output);
+    document
         .validate()
         .map_err(|error| format!("invalid document: {error}"))?;
     let output_text = output.to_string_lossy().to_string();
@@ -759,11 +867,10 @@ pub async fn generate_fitrec_command(
     tauri::async_runtime::spawn_blocking(move || {
         let signing_key = load_signing_key(&private_key)
             .map_err(|error| format!("private key failed: {error}"))?;
-        let recovery_path = PathBuf::from(format!("{}.parity", output.to_string_lossy()));
         let progress_app = app.clone();
         write_fitrec(
             &output,
-            &args.document,
+            &document,
             &signing_key,
             fit_core::FitRecOptions {
                 data_shards: args.data_shards,
@@ -774,7 +881,7 @@ pub async fn generate_fitrec_command(
         write_file_recovery_with_progress(
             &source_directory,
             &recovery_path,
-            &args.document,
+            &document,
             &signing_key,
             FileRecoveryOptions {
                 data_shards: recovery_options.data_shards,
@@ -1014,4 +1121,56 @@ pub fn ensure_within_base(path: &Path, base: &Path) -> Result<(), String> {
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod fit_output_tests {
+    use super::*;
+    use std::collections::BTreeMap;
+
+    fn sample_document() -> FitDocument {
+        FitDocument {
+            format_version: 1,
+            algorithm: "sha256".to_string(),
+            active_checklist: "default".to_string(),
+            checklists: BTreeMap::new(),
+            exclude_paths: Vec::new(),
+            exclude_rules: Map::new(),
+            metadata: Map::new(),
+        }
+    }
+
+    #[test]
+    fn fit_outputs_inside_source_are_excluded() {
+        let directory = tempfile::tempdir().unwrap();
+        let source = directory.path().canonicalize().unwrap();
+        let output = source.join("nested/release.fitrec");
+        std::fs::create_dir_all(output.parent().unwrap()).unwrap();
+        let mut document = sample_document();
+
+        append_fit_output_exclusions(&mut document, &source, &output);
+
+        assert_eq!(
+            document.exclude_paths,
+            [
+                "nested/release.fitrec",
+                "nested/release.fitrec.pub",
+                "nested/release.fitrec.parity"
+            ]
+        );
+    }
+
+    #[test]
+    fn fit_outputs_outside_source_are_not_excluded() {
+        let directory = tempfile::tempdir().unwrap();
+        let source = directory.path().join("source");
+        let output = directory.path().join("output/release.fitrec");
+        std::fs::create_dir_all(&source).unwrap();
+        std::fs::create_dir_all(output.parent().unwrap()).unwrap();
+        let mut document = sample_document();
+
+        append_fit_output_exclusions(&mut document, &source, &output);
+
+        assert!(document.exclude_paths.is_empty());
+    }
 }

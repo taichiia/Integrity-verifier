@@ -35,6 +35,32 @@ fn scan_collects_all_files_without_applying_rules() {
 }
 
 #[test]
+fn scan_excludes_generated_fit_artifacts() {
+    let directory = tempfile::tempdir().unwrap();
+    fs::write(directory.path().join("release.fitrec"), b"record").unwrap();
+    fs::write(directory.path().join("release.fitrec.pub"), b"public").unwrap();
+    fs::write(directory.path().join("release.fitrec.parity"), b"parity").unwrap();
+    fs::write(directory.path().join("data.txt"), b"data").unwrap();
+    fs::create_dir_all(directory.path().join(".fit-support")).unwrap();
+    fs::write(
+        directory.path().join(".fit-support/checksums.csv"),
+        b"path,hash\n",
+    )
+    .unwrap();
+
+    let report = scan_directory(directory.path(), &ScanOptions::default()).unwrap();
+    let paths: Vec<_> = report.files.iter().map(|file| file.path.as_str()).collect();
+    assert_eq!(paths, ["data.txt"]);
+
+    let prehash_options = PreHashOptions::default();
+    let report =
+        scan_and_prehash(directory.path(), &ScanOptions::default(), &prehash_options).unwrap();
+    assert_eq!(report.files.len(), 1);
+    assert_eq!(report.prehashes.len(), 1);
+    assert_eq!(report.prehashes[0].path, "data.txt");
+}
+
+#[test]
 fn missing_scan_root_is_rejected() {
     let directory = tempfile::tempdir().unwrap();
     let missing = directory.path().join("missing");

@@ -141,10 +141,13 @@ fn native_verifier_pack_copies_runtime_files() {
     fs::write(source.join("fit-verifier.exe"), b"verifier").unwrap();
     fs::write(source.join("release.fitrec"), b"record").unwrap();
     fs::write(source.join("release.fitrec.pub"), b"public").unwrap();
+    fs::write(source.join("checksums.csv"), b"path,hash\na.txt,hash\n").unwrap();
+    fs::write(source.join("checksums.csv.sig"), b"signature").unwrap();
 
     let packaged = pack_native_verifier(PackArgs {
         output_directory: output.to_string_lossy().to_string(),
         record_path: source.join("release.fitrec").to_string_lossy().to_string(),
+        checksum_path: Some(source.join("checksums.csv").to_string_lossy().to_string()),
         verifier_path: source
             .join("fit-verifier.exe")
             .to_string_lossy()
@@ -154,8 +157,10 @@ fn native_verifier_pack_copies_runtime_files() {
 
     let packaged = std::path::Path::new(&packaged);
     assert!(packaged.join("fit-verifier.exe").is_file());
-    assert!(packaged.join("release.fitrec").is_file());
-    assert!(packaged.join("release.fitrec.pub").is_file());
+    assert!(packaged.join(".fit-support/release.fitrec").is_file());
+    assert!(packaged.join(".fit-support/release.fitrec.pub").is_file());
+    assert!(packaged.join(".fit-support/checksums.csv").is_file());
+    assert!(packaged.join(".fit-support/checksums.csv.sig").is_file());
 }
 
 #[test]
@@ -171,12 +176,18 @@ fn native_verifier_pack_autodetects_adjacent_binary() {
         output_directory: output.to_string_lossy().to_string(),
         record_path: output.join("release.fitrec").to_string_lossy().to_string(),
         verifier_path: String::new(),
+        checksum_path: None,
     })
     .unwrap();
 
     assert!(
         std::path::Path::new(&packaged)
             .join("fit-verifier.exe")
+            .is_file()
+    );
+    assert!(
+        std::path::Path::new(&packaged)
+            .join(".fit-support/release.fitrec")
             .is_file()
     );
 }
@@ -198,6 +209,7 @@ fn native_verifier_pack_rejects_random_binary() {
             .join("not-verifier.exe")
             .to_string_lossy()
             .to_string(),
+        checksum_path: None,
     });
 
     assert!(
@@ -233,13 +245,14 @@ fn native_verifier_pack_uses_fallback_when_destination_is_readonly() {
             .join("fit-verifier.exe")
             .to_string_lossy()
             .to_string(),
+        checksum_path: None,
     })
     .unwrap();
 
     let packaged = std::path::Path::new(&packaged);
     assert!(packaged.join("fit-verifier (1).exe").is_file());
-    assert!(packaged.join("release.fitrec").is_file());
-    assert!(packaged.join("release.fitrec.pub").is_file());
+    assert!(packaged.join(".fit-support/release.fitrec").is_file());
+    assert!(packaged.join(".fit-support/release.fitrec.pub").is_file());
 
     let mut permissions = fs::metadata(&destination).unwrap().permissions();
     permissions.set_readonly(false);

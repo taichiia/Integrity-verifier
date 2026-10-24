@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -16,6 +16,73 @@ use fit_core::{
 struct AppState {
     cancel: Arc<AtomicBool>,
     recovery_cancel: Arc<AtomicBool>,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RecordBundle {
+    root_path: String,
+    record_path: String,
+    public_key_path: String,
+    recovery_path: Option<String>,
+}
+
+fn discover_record_bundle_in(root: &Path) -> Result<Option<RecordBundle>, String> {
+    let support = root.join(".fit-support");
+    if !support.is_dir() {
+        return Ok(None);
+    }
+
+    let mut records = Vec::new();
+    let entries =
+        fs::read_dir(&support).map_err(|error| format!("无法读取 .fit-support: {error}"))?;
+    for entry in entries {
+        let entry = entry.map_err(|error| format!("无法读取 .fit-support: {error}"))?;
+        let path = entry.path();
+        if path.is_file()
+            && path
+                .extension()
+                .and_then(|value| value.to_str())
+                .is_some_and(|value| value.eq_ignore_ascii_case("fitrec"))
+        {
+            records.push(path);
+        }
+    }
+    records.sort();
+    if records.is_empty() {
+        return Ok(None);
+    }
+    if records.len() > 1 {
+        return Err(".fit-support 中包含多个 .fitrec，请手动选择".to_string());
+    }
+
+    let record = records.remove(0);
+    let public_key = PathBuf::from(format!("{}.pub", record.to_string_lossy()));
+    if !public_key.is_file() {
+        return Err(format!("缺少校验记录公钥: {}", public_key.display()));
+    }
+    let recovery = PathBuf::from(format!("{}.parity", record.to_string_lossy()));
+    Ok(Some(RecordBundle {
+        root_path: root.to_string_lossy().to_string(),
+        record_path: record.to_string_lossy().to_string(),
+        public_key_path: public_key.to_string_lossy().to_string(),
+        recovery_path: recovery
+            .is_file()
+            .then(|| recovery.to_string_lossy().to_string()),
+    }))
+}
+
+#[tauri::command]
+fn discover_record_bundle() -> Result<Option<RecordBundle>, String> {
+    let current_exe = std::env::current_exe().ok();
+    if let Some(exe_dir) = current_exe.as_ref().and_then(|path| path.parent())
+        && let Some(bundle) = discover_record_bundle_in(exe_dir)?
+    {
+        return Ok(Some(bundle));
+    }
+
+    let current_dir = std::env::current_dir().unwrap_or_default();
+    discover_record_bundle_in(&current_dir)
 }
 
 #[derive(serde::Deserialize)]
@@ -318,6 +385,7 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             verify_record,
+            discover_record_bundle,
             inspect_fitrec,
             repair_fitrec,
             inspect_file_recovery,

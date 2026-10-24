@@ -269,6 +269,69 @@ function documentFromState() {
   };
 }
 
+function normalizedPathValue(path) {
+  return path
+    .trim()
+    .replace(/^["“]|["”]$/g, "")
+    .replace(/[\\/]+$/, "")
+    .replace(/\\/g, "/")
+    .toLowerCase();
+}
+
+function isPathInside(childPath, parentPath) {
+  const child = normalizedPathValue(childPath);
+  const parent = normalizedPathValue(parentPath);
+  return Boolean(parent) && child.startsWith(`${parent}/`);
+}
+
+function relativePathInside(childPath, parentPath) {
+  const child = childPath.trim().replace(/^["“]|["”]$/g, "");
+  const parent = parentPath.trim().replace(/^["“]|["”]$/g, "").replace(/[\\/]+$/, "");
+  if (!isPathInside(child, parent)) return null;
+  return child
+    .slice(parent.length + 1)
+    .replace(/\\/g, "/");
+}
+
+function joinPath(parentPath, childPath) {
+  return `${parentPath.trim().replace(/[\\/]+$/, "")}/${childPath}`;
+}
+
+function isFitArtifactPath(path) {
+  const name = path.split(/[\\/]/).pop()?.toLowerCase() || "";
+  return [".fitrec", ".fitrec.pub", ".fitrec.parity"].some((suffix) => name.endsWith(suffix));
+}
+
+function fitOutputIssues() {
+  const issues = [];
+  const rootPath = $("#rootPath").value;
+  const recordPath = $("#recordPath").value;
+  const artifactPaths = [
+    ...state.files.map((file) => file.path),
+    ...state.entries.map((entry) => entry.path),
+  ].filter(isFitArtifactPath);
+  if (artifactPaths.length) {
+    issues.push(
+      `源清单中包含 FIT 产物：${[...new Set(artifactPaths)].join("、")}。请取消勾选或把它们移出源目录后重新扫描。`
+    );
+  }
+  if (rootPath && recordPath && isPathInside(recordPath, rootPath)) {
+    issues.push(
+      "当前 .fitrec 输出位于源目录内。生成时会自动排除它和相邻公钥/档案，但更建议输出到源目录外。"
+    );
+  }
+  return issues;
+}
+
+function updateFitOutputWarning(notify = false) {
+  const host = $("#fitOutputWarning");
+  const issues = fitOutputIssues();
+  host.textContent = issues.join(" ");
+  host.classList.toggle("hidden", !issues.length);
+  if (notify && issues.length) toast(issues[0], "warning");
+  return issues;
+}
+
 function projectFromState() {
   const checklists = checklistsFromState();
   const checklist = checklists[state.activeChecklist] || [];
@@ -316,6 +379,7 @@ function loadProjectState(project) {
   $("#projectName").textContent = project.project_name || "Untitled";
   $("#password").value = "";
   refreshRecoveryEstimate();
+  updateFitOutputWarning();
   renderFiles();
   renderChecklistSelect();
   renderHashResults(hashRows(), "#hashRows");
@@ -457,11 +521,23 @@ $("#fileRows").addEventListener("click", (event) => {
 
 $("#browseRoot").addEventListener("click", async () => {
   const path = await invoke("pick_directory");
-  if (path) $("#rootPath").value = path;
+  if (path) {
+    $("#rootPath").value = path;
+    if (!$("#packPath").value) $("#packPath").value = path;
+    updateFitOutputWarning();
+  }
   refreshRecoveryEstimate();
 });
 
 $("#rootPath").addEventListener("input", () => refreshRecoveryEstimate());
+$("#rootPath").addEventListener("change", () => updateFitOutputWarning());
+$("#rootPath").addEventListener("change", () => {
+  if ($("#rootPath").value && !$("#packPath").value) {
+    $("#packPath").value = $("#rootPath").value;
+  }
+});
+$("#recordPath").addEventListener("input", () => updateFitOutputWarning());
+$("#recordPath").addEventListener("change", () => updateFitOutputWarning());
 
 ["#recoveryMode", "#dataShards", "#parityShards", "#shardSize"].forEach((id) => {
   $(id).addEventListener("change", () => refreshRecoveryEstimate());
@@ -471,18 +547,25 @@ $("#rootPath").addEventListener("input", () => refreshRecoveryEstimate());
 $("#scan").addEventListener("click", async () => {
   setStatus("#scanStatus", "扫描中...");
   try {
-    applyScanResult(
-      await invoke("scan_directory", {
-        args: {
-          rootPath: $("#rootPath").value,
-          prehash: $("#prehashEnabled").checked,
-          algorithm: $("#algorithm").value,
-        },
-      })
-    );
+    const report = await invoke("scan_directory", {
+      args: {
+        rootPath: $("#rootPath").value,
+        prehash: $("#prehashEnabled").checked,
+        algorithm: $("#algorithm").value,
+      },
+    });
+    applyScanResult(report);
     state.files = await applyFilters(state.files);
     state.included = new Set(state.files.map((file) => file.path));
+    updateFitOutputWarning();
     renderFiles();
+    if (report.cancelled) {
+      toast("扫描已取消", "warning");
+    } else if (report.errors.length) {
+      toast(`扫描完成，${state.files.length} 个文件，${report.errors.length} 个错误`, "warning");
+    } else {
+      toast(`扫描完成，${state.files.length} 个文件`, "success");
+    }
   } catch (error) {
     renderFiles();
     setStatus("#scanStatus", String(error));
@@ -509,8 +592,10 @@ $("#applyFilters").addEventListener("click", async () => {
     state.files = await applyFilters(state.files);
     state.included = new Set(state.files.map((file) => file.path));
     renderFiles();
+    toast(`筛选完成，保留 ${state.files.length} 个文件`, "success");
   } catch (error) {
     setStatus("#scanStatus", String(error));
+    toast(String(error), "error");
   }
 });
 
@@ -663,7 +748,7 @@ $("#importChecksum").addEventListener("click", async () => {
   await loadChecksumFile(path);
 });
 
-async function loadChecksumFile(path) {
+async function loadChecksumFile(path, notify = true) {
   try {
     const loaded = await invoke("read_checksum_file", { path });
     $("#checksumPath").value = path;
@@ -677,6 +762,7 @@ async function loadChecksumFile(path) {
     renderChecklistRows();
     renderHashResults(hashRows(), "#hashRows");
     setStatus("#checksumStatus", `已导入 ${path}`);
+    if (notify) toast("校验文件已导入", "success");
   } catch (error) {
     setStatus("#checksumStatus", String(error));
   }
@@ -722,7 +808,7 @@ $("#decryptChecksum").addEventListener("click", async () => {
     const decrypted = await invoke("decrypt_checksum_file", {
       args: { path, outputPath: output, password },
     });
-    await loadChecksumFile(decrypted);
+    await loadChecksumFile(decrypted, false);
     toast("校验文件已解密导入", "success");
   } catch (error) {
     setStatus("#checksumStatus", String(error));
@@ -740,8 +826,10 @@ $("#signChecksum").addEventListener("click", async () => {
   try {
     const signature = await invoke("sign_checksum_file", { path, privateKeyPath: privateKey });
     setStatus("#checksumStatus", `已签名 ${signature}`);
+    toast("校验文件已签名", "success");
   } catch (error) {
     setStatus("#checksumStatus", String(error));
+    toast(String(error), "error");
   }
 });
 
@@ -755,14 +843,19 @@ $("#verifyChecksum").addEventListener("click", async () => {
   try {
     await invoke("verify_checksum_file", { path, publicKeyPath: `${publicKey}.pub` });
     setStatus("#checksumStatus", "签名有效");
+    toast("校验文件签名有效", "success");
   } catch (error) {
     setStatus("#checksumStatus", String(error));
+    toast(String(error), "error");
   }
 });
 
 $("#browseRecord").addEventListener("click", async () => {
   const path = await invoke("pick_save_file", { name: "release.fitrec", extensions: ["fitrec"] });
-  if (path) $("#recordPath").value = path;
+  if (path) {
+    $("#recordPath").value = path;
+    updateFitOutputWarning();
+  }
 });
 
 $("#browseKey").addEventListener("click", async () => {
@@ -773,11 +866,17 @@ $("#browseKey").addEventListener("click", async () => {
 $("#makeKey").addEventListener("click", async () => {
   const privateKey = await invoke("pick_save_file", { name: "fitrec.key", extensions: ["key"] });
   if (!privateKey) return;
-  await invoke("generate_keypair_command", {
-    args: { privateKeyPath: privateKey, publicKeyPath: `${privateKey}.pub` },
-  });
-  $("#privateKeyPath").value = privateKey;
-  setStatus("#recordStatus", "密钥已生成");
+  try {
+    await invoke("generate_keypair_command", {
+      args: { privateKeyPath: privateKey, publicKeyPath: `${privateKey}.pub` },
+    });
+    $("#privateKeyPath").value = privateKey;
+    setStatus("#recordStatus", "密钥已生成");
+    toast("密钥已生成", "success");
+  } catch (error) {
+    setStatus("#recordStatus", String(error));
+    toast(String(error), "error");
+  }
 });
 
 async function locateVerifier() {
@@ -817,6 +916,15 @@ $("#generate").addEventListener("click", async () => {
     setStatus("#recordStatus", "请先生成有效哈希");
     return;
   }
+  const issues = updateFitOutputWarning();
+  if (issues.some((issue) => issue.includes("FIT 产物"))) {
+    setStatus("#recordStatus", issues[0]);
+    toast(issues[0], "warning");
+    return;
+  }
+  const outputInsideSource = $("#rootPath").value
+    && $("#recordPath").value
+    && isPathInside($("#recordPath").value, $("#rootPath").value);
   try {
     const output = await invoke("generate_fitrec_command", {
       args: {
@@ -830,11 +938,115 @@ $("#generate").addEventListener("click", async () => {
         mode: $("#recoveryMode").value,
       },
     });
+    if (outputInsideSource) {
+      const recordRelative = relativePathInside($("#recordPath").value, $("#rootPath").value);
+      for (const relative of [recordRelative, `${recordRelative}.pub`, `${recordRelative}.parity`]) {
+        if (relative) state.excluded.add(relative);
+      }
+    }
+    updateFitOutputWarning(true);
     setStatus("#recordStatus", `已生成 ${output}、${output}.pub 和 ${output}.parity`);
     toast("恢复记录和文件纠错档案已生成", "success");
   } catch (error) {
     setStatus("#recordStatus", String(error));
     toast(String(error), "error");
+  }
+});
+
+async function ensureReleasePrivateKey() {
+  const existing = $("#privateKeyPath").value.trim();
+  if (existing) return existing;
+  const privateKey = await invoke("pick_save_file", { name: "fitrec.key", extensions: ["key"] });
+  if (!privateKey) return null;
+  await invoke("generate_keypair_command", {
+    args: { privateKeyPath: privateKey, publicKeyPath: `${privateKey}.pub` },
+  });
+  $("#privateKeyPath").value = privateKey;
+  toast("密钥已生成", "success");
+  return privateKey;
+}
+
+$("#createReleasePackage").addEventListener("click", async () => {
+  const button = $("#createReleasePackage");
+  if (!$("#rootPath").value) {
+    setStatus("#releaseStatus", "请先选择源目录");
+    toast("请先选择源目录", "warning");
+    return;
+  }
+  if (!state.entries.some((entry) => entry.status === "ok")) {
+    setStatus("#releaseStatus", "请先计算哈希");
+    toast("请先计算哈希", "warning");
+    return;
+  }
+  if (!$("#packPath").value) {
+    setStatus("#releaseStatus", "请选择发布根目录");
+    toast("请选择发布根目录", "warning");
+    return;
+  }
+
+  button.disabled = true;
+  setStatus("#releaseStatus", "正在准备发布目录...");
+  try {
+    const supportDirectory = await invoke("prepare_support_directory", {
+      outputDirectory: $("#packPath").value,
+    });
+    const privateKey = await ensureReleasePrivateKey();
+    if (!privateKey) {
+      setStatus("#releaseStatus", "已取消：未选择私钥保存位置");
+      return;
+    }
+    const recordPath = joinPath(supportDirectory, "release.fitrec");
+    $("#recordPath").value = recordPath;
+    updateFitOutputWarning();
+    setStatus("#releaseStatus", "正在生成校验记录和纠错档案...");
+    const output = await invoke("generate_fitrec_command", {
+      args: {
+        document: documentFromState(),
+        sourceDirectory: $("#rootPath").value,
+        outputPath: recordPath,
+        privateKeyPath: privateKey,
+        dataShards: Number($("#dataShards").value),
+        parityShards: Number($("#parityShards").value),
+        shardSize: Math.max(1, Math.round(Number($("#shardSize").value || 1) * 1024 * 1024)),
+        mode: $("#recoveryMode").value,
+      },
+    });
+    const checksumPath = joinPath(supportDirectory, "checksums.csv");
+    const checksumEntries = state.entries
+      .filter((entry) => entry.hash && !entry.error)
+      .map((entry) => ({ path: entry.path, hash: entry.hash }));
+    setStatus("#releaseStatus", "正在生成 CSV 校验清单...");
+    await invoke("write_checksum_file", {
+      args: {
+        path: checksumPath,
+        format: "csv",
+        algorithm: $("#algorithm").value,
+        entries: checksumEntries,
+      },
+    });
+    $("#checksumPath").value = checksumPath;
+    setStatus("#checksumStatus", `已自动生成 ${checksumPath}`);
+    setStatus("#releaseStatus", "正在复制 Verifier...");
+    const releaseRoot = await invoke("pack_native_verifier", {
+      args: {
+        outputDirectory: $("#packPath").value,
+        recordPath: output,
+        verifierPath: $("#verifierPath").dataset.value || "",
+        checksumPath,
+      },
+    });
+    const supportRelative = relativePathInside(supportDirectory, $("#rootPath").value);
+    if (supportRelative) state.excluded.add(supportRelative);
+    setStatus(
+      "#releaseStatus",
+      `发布包已生成：${releaseRoot}（.fitrec/.pub/.parity/checksums.csv 位于 ${supportDirectory}）`
+    );
+    toast("一键发布包已生成", "success");
+  } catch (error) {
+    setStatus("#releaseStatus", String(error));
+    toast(String(error), "error");
+  } finally {
+    button.disabled = false;
   }
 });
 
@@ -849,6 +1061,7 @@ $("#packVerifier").addEventListener("click", async () => {
         outputDirectory: $("#packPath").value,
         recordPath: $("#recordPath").value,
         verifierPath: $("#verifierPath").dataset.value || "",
+        checksumPath: $("#checksumPath").value || null,
       },
     });
     setStatus("#recordStatus", `已打包到 ${output}`);
@@ -873,6 +1086,19 @@ $("#simulate").addEventListener("click", async () => {
     });
     renderVerifyReport(report);
     setStatus("#recordStatus", report.cancelled ? "验证已取消" : "验证完成");
+    if (report.cancelled) {
+      toast("验证已取消", "warning");
+    } else {
+      const problemCount = report.failed + report.missing + report.extra_count;
+      if (problemCount > 0) {
+        toast(
+          `验证完成：${problemCount} 个问题（失败 ${report.failed}，缺失 ${report.missing}，多余 ${report.extra_count}）`,
+          "warning"
+        );
+      } else {
+        toast(`验证完成：${report.passed} 个文件通过`, "success");
+      }
+    }
   } catch (error) {
     setStatus("#recordStatus", String(error));
     toast(String(error), "error");
@@ -887,16 +1113,24 @@ $("#stopVerify").addEventListener("click", () => invoke("cancel_verification"));
 $("#saveProject").addEventListener("click", async () => {
   const path = await invoke("pick_save_file", { name: "project.fitbuilder", extensions: ["fitbuilder"] });
   if (!path) return;
-  await invoke("save_project", { path, project: projectFromState() });
-  state.project.project_name = path.split(/[\\/]/).pop();
-  $("#projectName").textContent = state.project.project_name;
-  toast("项目已保存", "success");
+  try {
+    await invoke("save_project", { path, project: projectFromState() });
+    state.project.project_name = path.split(/[\\/]/).pop();
+    $("#projectName").textContent = state.project.project_name;
+    toast("项目已保存", "success");
+  } catch (error) {
+    toast(String(error), "error");
+  }
 });
 
 $("#openProject").addEventListener("click", async () => {
   const path = await invoke("pick_file");
   if (!path) return;
-  loadProjectState(await invoke("load_project", { path }));
+  try {
+    loadProjectState(await invoke("load_project", { path }));
+  } catch (error) {
+    toast(String(error), "error");
+  }
 });
 
 $("#newProject").addEventListener("click", () => {
@@ -1242,7 +1476,11 @@ window.__TAURI__.event.listen("builder-scan-progress", ({ payload }) => {
       "#scanStatus",
       payload.stage === "prehash"
         ? `预哈希中 ${payload.completed} / ${payload.total}：${payload.path}`
-        : `扫描中 ${payload.count}：${payload.path}`
+        : payload.stage === "prehashDone"
+          ? `预哈希完成 ${payload.completed} / ${payload.total}`
+          : payload.stage === "scan"
+            ? `扫描中 ${payload.count}：${payload.path}`
+            : ""
     );
   });
 });

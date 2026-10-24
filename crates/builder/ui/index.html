@@ -41,7 +41,9 @@
           <h2>文件</h2>
           <p>扫描完整目录树，再应用过滤和勾选。</p>
         </div>
-        <section class="card">
+        <details class="advanced-panel">
+          <summary>高级配置</summary>
+          <section class="card">
           <div class="field-row">
             <label class="field-label" for="rootPath">根目录</label>
             <input id="rootPath" type="text" autocomplete="off" spellcheck="false" />
@@ -118,7 +120,7 @@
       <section id="panel-checklists" class="page hidden">
         <div class="page-header">
           <h2>清单</h2>
-          <p>管理多套校验清单，导出 CSV 或 SFV。</p>
+          <p>可选：仅需要多清单、导出 CSV/SFV、加密或签名时使用。</p>
         </div>
         <section class="card">
           <div class="toolbar">
@@ -127,7 +129,7 @@
             <button id="deleteChecklist" class="ghost">删除</button>
           </div>
           <div class="form-grid">
-            <label class="field-label" for="checksumPath">校验文件</label>
+            <label class="field-label" for="checksumPath">校验文件（可选）</label>
             <div class="input-row"><input id="checksumPath" type="text" spellcheck="false" /><button id="browseChecksum" class="ghost">浏览</button></div>
             <label class="field-label">格式</label>
             <div class="segmented">
@@ -158,8 +160,20 @@
       <section id="panel-package" class="page hidden">
         <div class="page-header">
           <h2>打包</h2>
-          <p>生成独立恢复记录并打包原生验证器。</p>
+          <p>一键生成发布包；下方保留手动生成与高级配置。</p>
         </div>
+        <section class="card">
+          <h3 class="card-title">一键发布包</h3>
+          <div class="form-grid">
+            <label class="field-label" for="packPath">发布根目录</label>
+            <div class="input-row"><input id="packPath" type="text" spellcheck="false" /><button id="browsePack" class="ghost">浏览</button></div>
+          </div>
+          <div class="toolbar">
+            <button id="createReleasePackage" class="primary">一键生成并打包</button>
+          </div>
+          <div class="status-row"><span id="releaseStatus" class="hint" aria-live="polite">就绪</span></div>
+        </section>
+
         <section class="card">
           <h3 class="card-title">校验记录</h3>
           <div class="form-grid">
@@ -168,6 +182,7 @@
             <label class="field-label" for="privateKeyPath">Ed25519 私钥</label>
             <div class="input-row"><input id="privateKeyPath" type="text" spellcheck="false" /><button id="browseKey" class="ghost">浏览</button><button id="makeKey" class="ghost">生成</button></div>
           </div>
+          <div id="fitOutputWarning" class="warning-note hidden"></div>
         </section>
 
         <section class="card">
@@ -201,17 +216,18 @@
           <div class="form-grid">
             <label class="field-label" for="verifierPath">验证器 EXE</label>
             <div class="input-row"><input id="verifierPath" type="text" readonly spellcheck="false" /><button id="locateVerifier" class="ghost">查找</button></div>
-            <label class="field-label" for="packPath">输出目录</label>
-            <div class="input-row"><input id="packPath" type="text" spellcheck="false" /><button id="browsePack" class="ghost">浏览</button></div>
           </div>
           <div class="toolbar">
             <button id="packVerifier" class="ghost">打包验证器</button>
           </div>
         </section>
+        </details>
+
         <section class="card help-card">
           <h3>恢复 / 纠错码使用方法</h3>
-          <p>生成会产出两类恢复资产：<code>.fitrec</code> 是 Ed25519 签名的校验清单；<code>.fitrec.parity</code> 是针对原始文件的 Reed-Solomon 恢复档案。点击「生成」可创建新的 Ed25519 密钥对。</p>
+          <p>一键发布会把 <code>.fitrec</code>、<code>.fitrec.pub</code>、<code>.fitrec.parity</code> 和 <code>checksums.csv</code> 放入发布根目录下的 <code>.fit-support</code>；Verifier 会自动查找该目录。私钥不会放入发布包。</p>
           <ul>
+            <li><strong>源目录隔离：</strong>尽量把发布根目录与源目录分开；若必须放在一起，程序会自动排除 <code>.fit-support</code>。</li>
             <li><strong>跨文件模式：</strong>按大小相近的文件分组，每个文件占用一个 lane。默认 16 + 4 约增加 25% 档案体积；一个文件完全缺失时，可使用同组健康文件和 parity 重建。</li>
             <li><strong>单文件模式：</strong>适合只保护损坏文件。8 + 4 可修复一个文件内 4 个坏分片，但默认不能重建已删除文件。</li>
             <li><strong>双层模式：</strong>先尝试单文件修复，缺失文件再用跨文件 parity 重建。体积约等于两种模式相加。</li>
@@ -225,7 +241,7 @@
       <section id="panel-verify" class="page hidden">
         <div class="page-header">
           <h2>校验</h2>
-          <p>使用当前清单模拟验证，或导入外部校验文件。</p>
+          <p>可选：用于发布前预检；接收方通常直接使用 Verifier。</p>
         </div>
         <section class="card">
           <div class="field-row">

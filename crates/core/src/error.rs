@@ -12,6 +12,8 @@ pub enum CoreError {
     Signature,
     #[error("document integrity check failed")]
     Integrity,
+    #[error("source changed after checksum generation: {path} ({reason})")]
+    SourceChanged { path: String, reason: &'static str },
     #[error("RS recovery capacity exceeded: {damaged} damaged shards, capacity is {capacity}")]
     InsufficientShards { damaged: usize, capacity: usize },
     #[error("invalid manifest entry: {0}")]

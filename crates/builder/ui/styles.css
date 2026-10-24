@@ -157,6 +157,33 @@ body {
 
 .card + .card { margin-top: 12px; }
 
+.advanced-panel {
+  margin-bottom: 12px;
+  border: 1px solid var(--stroke-default);
+  border-radius: 4px;
+  background: var(--card);
+  overflow: hidden;
+}
+
+.advanced-panel summary {
+  padding: 14px;
+  cursor: pointer;
+  font-weight: 600;
+  user-select: none;
+}
+
+.advanced-panel[open] summary {
+  border-bottom: 1px solid var(--stroke-default);
+}
+
+.advanced-panel .card {
+  margin-top: 12px;
+}
+
+.advanced-panel .card:last-child {
+  margin-bottom: 12px;
+}
+
 .toolbar {
   display: flex;
   align-items: center;
@@ -223,6 +250,17 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.warning-note {
+  margin: 12px 14px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--caution);
+  border-radius: 4px;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--caution) 12%, transparent);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .badge {
