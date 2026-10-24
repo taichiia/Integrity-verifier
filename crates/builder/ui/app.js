@@ -432,6 +432,7 @@ function renderChecklistRows() {
     state.entries.map((entry) => ({ path: entry.path, hash: entry.hash, error: entry.status === "error" ? "error" : "" })),
     "#checklistRows"
   );
+  renderChecklistSelect();
 }
 
 function renderChecklistSelect() {
@@ -444,6 +445,22 @@ function renderChecklistSelect() {
     option.selected = name === state.activeChecklist;
     select.append(option);
   }
+
+  const releaseSelect = $("#releaseChecklistName");
+  releaseSelect.innerHTML = "";
+  for (const name of [...state.checklists.keys()].sort()) {
+    const option = document.createElement("option");
+    option.value = name;
+    option.textContent = name;
+    option.selected = name === state.activeChecklist;
+    releaseSelect.append(option);
+  }
+
+  const validCount = state.entries.filter((entry) => entry.hash && !entry.error).length;
+  const errorCount = state.entries.filter((entry) => entry.error).length;
+  $("#releaseChecklistStatus").textContent = validCount
+    ? `使用 ${state.activeChecklist}，${validCount} 个有效文件${errorCount ? `，${errorCount} 个错误` : ""}；发布时自动生成 .fit-support/checksums.csv`
+    : "尚未计算哈希；一键发布会自动生成 .fit-support/checksums.csv";
 }
 
 function setProgress(barId, completed, total) {
@@ -709,6 +726,14 @@ $("#deleteChecklist").addEventListener("click", () => {
 $("#checklistName").addEventListener("change", (event) => {
   state.activeChecklist = event.target.value;
   state.entries = state.checklists.get(state.activeChecklist) || [];
+  renderChecklistRows();
+  refreshRecoveryEstimate();
+});
+
+$("#releaseChecklistName").addEventListener("change", (event) => {
+  state.activeChecklist = event.target.value;
+  state.entries = state.checklists.get(state.activeChecklist) || [];
+  renderChecklistSelect();
   renderChecklistRows();
   refreshRecoveryEstimate();
 });
@@ -1146,27 +1171,29 @@ $("#openGitHub").addEventListener("click", async () => {
   }
 });
 
-const TOUR_STORAGE_KEY = "fit-builder-onboarding-v2";
+const TOUR_STORAGE_KEY = "fit-builder-onboarding-v4";
 const TOUR_STEPS = [
   {
     target: null,
     panel: null,
     title: "FIT 是做什么的？",
-    body: "FIT 帮你回答两个问题：文件有没有被改过？如果坏掉或丢了，能不能修回来？Builder 负责制作校验记录和恢复档案，Verifier 给接收方用来验证或修复。",
+    body: "FIT 帮你回答两个问题：文件有没有被改过？如果坏掉或丢了，能不能修回来？Builder 负责生成校验记录、恢复档案和接收方工具；Verifier 给接收方使用。",
     points: [
-      "校验：发现文件被修改、删除或多出。",
-      "恢复：利用纠错档案修复损坏或缺失的文件。",
+      "完整性校验：发现修改、删除、缺失和多余文件。",
+      "纠错恢复：利用 Reed-Solomon 校验分片修复损坏或缺失文件。",
+      "分发：Verifier 和支持文件一起打包，接收方几乎不需要额外配置。",
     ],
   },
   {
     target: null,
     panel: null,
-    title: "三个关键产物",
-    body: "后面会反复看到几个文件。先分清它们，后面的配置就容易理解了。",
+    title: "看懂关键文件",
+    body: "先认识四个文件。之后无论看到“校验”“恢复”还是“分发”，都是围绕它们。",
     points: [
       ".fitrec：签名后的校验记录，用来判断文件是否变化。",
       ".fitrec.pub：公钥，用来验证记录签名，可以随记录分发。",
       ".fitrec.parity：恢复档案，保存纠错分片；只有需要恢复时才分发。",
+      "checksums.csv：可读校验清单；一键发布会自动放入 .fit-support。",
       "fitrec.key：私钥，只留在作者手里，不要放进分发包。",
     ],
   },
@@ -1174,13 +1201,17 @@ const TOUR_STEPS = [
     target: ".topbar-actions",
     panel: null,
     title: "项目与外观",
-    body: "这里用于新建、打开、保存项目，也能切换暗色模式或打开 GitHub 仓库。",
+    body: "这里用于新建、打开、保存项目，也能切换暗色模式、打开教程或打开 GitHub 仓库。",
+    points: [
+      "项目保存扫描、哈希和恢复配置，适合继续维护同一个数据集。",
+      "教程可以随时从顶栏重新打开。",
+    ],
   },
   {
     target: "#panel-files .field-row",
     panel: "panel-files",
     title: "选择并扫描目录",
-    body: "先选择源目录，然后点击“扫描”。Builder 会递归读取文件列表。",
+    body: "先选择源目录，然后点击“扫描”。Builder 会递归读取文件列表，但还没有正式计算哈希。",
     points: [
       "扫描只是收集文件列表，还没有正式计算哈希。",
       "如果开启预哈希，扫描过程中会先算一部分哈希，后面正式哈希可以复用缓存。",
@@ -1207,30 +1238,35 @@ const TOUR_STEPS = [
     ],
   },
   {
-    target: "#panel-checklists .toolbar",
-    panel: "panel-checklists",
-    title: "管理校验清单",
-    body: "这里可以导出或导入 CSV / SFV，也可以签名、验证签名或加密校验文件。",
+    target: "#panel-package > section.card",
+    panel: "panel-package",
+    title: "一键发布：最常用流程",
+    body: "哈希完成后进入打包页。选择发布根目录，点击“一键生成并打包”，清单、记录、恢复档案和 Verifier 会自动组织好。",
     points: [
-      "CSV 和 SFV 适合与外部工具交换校验结果。",
-      "签名能防止清单被篡改；加密用于保护清单内容。",
+      "发布清单：从当前清单中选择，发布时会自动生成 checksums.csv。",
+      "发布根目录：建议放在源目录之外，避免源文件和发布产物混在一起。",
+      "一键发布会自动创建 .fit-support 并复制所有支持文件。",
+      "私钥不会被复制进发布包。",
     ],
   },
   {
-    target: "#panel-package section.card:nth-of-type(1)",
+    target: "#panel-package .advanced-panel",
     panel: "panel-package",
-    title: "生成签名记录",
-    body: "设置 .fitrec 输出路径，并生成或选择 Ed25519 私钥。公钥会自动写在记录旁边。",
+    title: "高级配置：什么时候用？",
+    openAdvanced: true,
+    body: "一键发布已经覆盖日常流程。只有需要手动指定记录路径、导入清单、调整签名身份或精细控制恢复参数时，才展开高级配置。",
     points: [
-      "私钥负责签名；公钥负责验证签名。",
-      "私钥丢失后无法用同一身份继续签名，所以请单独备份。",
+      "校验记录卡可以手动指定 .fitrec 和 Ed25519 私钥。",
+      "恢复档案卡可以调整模式、分片和分片大小。",
+      "验证器打包卡用于高级分发出包，不需要时可以直接跳过。",
+      "清单管理卡保留给多清单、导入导出、签名、加密等特殊工作流。",
     ],
   },
   {
     target: "#recoveryMode",
     panel: "panel-package",
     title: "选择恢复模式",
-    body: "恢复模式决定纠错档案保护什么类型的损坏。选错模式，档案可能无法修复你最担心的问题。",
+    body: "恢复模式决定纠错档案保护什么类型的损坏。默认 crossFile 已经能处理完整文件缺失。",
     points: [
       "singleFile：修复单个文件内部的损坏，不擅长整个文件完全丢失。",
       "crossFile：把同组文件当作通道；整个文件缺失时有机会重建。",
@@ -1238,7 +1274,7 @@ const TOUR_STEPS = [
     ],
   },
   {
-    target: "#panel-package section.card:nth-of-type(2) .form-grid",
+    target: "#dataShards",
     panel: "panel-package",
     title: "分片：体积与容错的平衡",
     body: "分片是恢复档案的基本单位。数据分片来自原始文件，纠错分片是从数据分片计算出来的冗余。",
@@ -1251,7 +1287,7 @@ const TOUR_STEPS = [
     ],
   },
   {
-    target: "#panel-package section.card:nth-of-type(2) .estimate-row",
+    target: "#panel-package .advanced-panel .estimate-row",
     panel: "panel-package",
     title: "看懂预估结果",
     body: "配置变化时，下方会实时估算体积和可恢复比例。它适合在生成前比较方案。",
@@ -1263,23 +1299,13 @@ const TOUR_STEPS = [
     ],
   },
   {
-    target: "#panel-package section.card:nth-of-type(3)",
-    panel: "panel-package",
-    title: "分发验证器",
-    body: "选择输出目录后打包验证器。没有选择外部 EXE 时，Builder 会使用内嵌 Verifier。",
-    points: [
-      "只验证：发 Verifier、.fitrec 和 .fitrec.pub。",
-      "需要恢复：再加上 .fitrec.parity。",
-      "私钥永远不要发给接收方。",
-    ],
-  },
-  {
     target: null,
     panel: "panel-package",
     title: "准备完成",
-    body: "完整流程是：扫描 -> 哈希 -> 生成记录和纠错档 -> 打包验证器 -> 接收方验证或恢复。",
+    body: "日常流程可以简化为：扫描 -> 哈希 -> 一键生成并打包。接收方运行 Verifier 时会自动发现 .fit-support。",
     points: [
-      "Verifier 先判断文件是否变化；必要时再用恢复档案修复。",
+      "Verifier 先自动加载记录和公钥，然后判断文件是否变化。",
+      "需要恢复时，它会使用 .fit-support 里的恢复档案。",
       "恢复会写到单独目录，不会直接覆盖原文件。",
       "之后可以从顶栏问号按钮重新打开这个教程。",
     ],
@@ -1395,6 +1421,10 @@ function setTutorialStep(index) {
   document.body.classList.add("tutorial-open");
 
   if (step.panel) activatePanel(step.panel);
+  if (step.openAdvanced) {
+    const panel = $("#panel-package .advanced-panel");
+    if (panel) panel.open = true;
+  }
   $("#tutorialTitle").textContent = step.title;
   $("#tutorialBody").textContent = step.body;
   const points = step.points || [];

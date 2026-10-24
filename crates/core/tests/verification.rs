@@ -1,11 +1,11 @@
 use std::collections::BTreeMap;
 use std::fs;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
 use fit_core::{
-    FileRules, FitDocument, ManifestEntry, VerificationOptions, normalize_relative_path,
-    run_verification,
+    FileRules, FitDocument, ManifestEntry, VerificationOptions, VerificationProgress,
+    normalize_relative_path, run_verification,
 };
 
 fn entry(path: &str, hash: &str) -> ManifestEntry {
@@ -54,17 +54,26 @@ fn verification_reports_pass_fail_missing_and_extra() {
         metadata: serde_json::Map::new(),
     };
 
+    let progress = Arc::new(Mutex::new(None));
+    let progress_for_callback = Arc::clone(&progress);
     let options = VerificationOptions {
         ignored_paths: vec!["logs/ignored.log".to_string()],
+        progress: Some(Arc::new(move |value: VerificationProgress| {
+            *progress_for_callback.lock().unwrap() = Some(value);
+        })),
         ..Default::default()
     };
     let report = run_verification(&document, directory.path(), &options).unwrap();
+    let progress = progress.lock().unwrap().expect("verification progress");
 
     assert_eq!(report.total, 3);
     assert_eq!(report.passed, 1);
     assert_eq!(report.failed, 1);
     assert_eq!(report.missing, 1);
     assert_eq!(report.extra_count, 1);
+    assert_eq!(progress.total, 3);
+    assert_eq!(progress.missing, 1);
+    assert_eq!(progress.extra, 1);
 
     let statuses = report
         .details
@@ -111,6 +120,41 @@ fn ignored_path_excludes_directory_prefix() {
 
     assert_eq!(report.total, 1);
     assert_eq!(report.passed, 1);
+    assert_eq!(report.extra_count, 0);
+}
+
+#[test]
+fn ignored_manifest_entries_are_not_missing_or_extra() {
+    let directory = tempfile::tempdir().unwrap();
+    fs::write(directory.path().join("pass.txt"), b"pass").unwrap();
+
+    let mut checklists = BTreeMap::new();
+    checklists.insert(
+        "default".to_string(),
+        vec![
+            entry("pass.txt", &sha256("pass")),
+            entry("skipped.txt", &sha256("skipped")),
+        ],
+    );
+    let document = FitDocument {
+        format_version: 1,
+        algorithm: "sha256".to_string(),
+        active_checklist: "default".to_string(),
+        checklists,
+        exclude_paths: Vec::new(),
+        exclude_rules: serde_json::Map::new(),
+        metadata: serde_json::Map::new(),
+    };
+
+    let options = VerificationOptions {
+        ignored_paths: vec!["skipped.txt".to_string()],
+        ..Default::default()
+    };
+    let report = run_verification(&document, directory.path(), &options).unwrap();
+
+    assert_eq!(report.total, 1);
+    assert_eq!(report.passed, 1);
+    assert_eq!(report.missing, 0);
     assert_eq!(report.extra_count, 0);
 }
 

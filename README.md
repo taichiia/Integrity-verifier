@@ -42,7 +42,7 @@ FIT 不是整盘备份工具；它只保护恢复档案中显式列出的文件�
 - 生成签名的 `.fitrec`、公钥 `.fitrec.pub`，以及恢复档案 `.fitrec.parity`。
 - 配置变化时实时估计恢复档案体积和可恢复文件百分比。
 - 一键生成发布包：自动创建 `.fit-support`，自动生成并打包 `checksums.csv`，无需手动选择清单输出位置。
-- 高级模式下可将原生 Verifier 与记录、公钥、可选恢复档案一起打包。
+- 高级配置整合清单管理、校验记录、恢复档案和 Verifier 打包。
 - 分发前可对目标目录执行模拟验证。
 - 保存并重新打开 `.fitbuilder` 项目。
 - 首次启动时提供可跳过的高亮教程，先说明软件用途，再解释记录、公钥、恢复档案、分片和恢复模式。
@@ -317,7 +317,7 @@ FIT is not a whole-disk backup tool. It protects files explicitly listed in a re
 - Generates signed `.fitrec`, public key `.fitrec.pub`, and recovery archive `.fitrec.parity`.
 - Estimates recovery archive size and recoverable-file percentage while settings change.
 - Creates a one-click release package: it automatically creates `.fit-support`, generates `checksums.csv`, and packages the manifest without asking the user to choose a manifest output path.
-- Advanced mode can also package the native Verifier with the record, public key, and optional recovery archive.
+- Advanced settings consolidate checklist management, record generation, recovery configuration, and Verifier packaging.
 - Simulates verification against a target directory before distribution.
 - Saves and reopens `.fitbuilder` projects.
 - Shows a skippable first-launch guided tour that explains the tool's purpose, record artifacts, recovery, and shard concepts, with a top-bar button to replay it.

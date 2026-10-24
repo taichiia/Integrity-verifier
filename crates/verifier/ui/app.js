@@ -200,7 +200,12 @@ startRecoveryButton.addEventListener("click", async () => {
       },
     });
     renderRecoveryReport(report);
-    setRecoveryProgress(100, report.failed ? "完成，但有文件失败" : "恢复完成");
+    setRecoveryProgress(
+      100,
+      report.failed || report.missing
+        ? `完成；缺失文件 ${report.missing} 个，失败 ${report.failed} 个`
+        : "恢复完成",
+    );
   } catch (error) {
     renderRecoveryError(String(error));
     setRecoveryProgress(0, "恢复失败");

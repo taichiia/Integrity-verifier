@@ -41,9 +41,7 @@
           <h2>文件</h2>
           <p>扫描完整目录树，再应用过滤和勾选。</p>
         </div>
-        <details class="advanced-panel">
-          <summary>高级配置</summary>
-          <section class="card">
+        <section class="card">
           <div class="field-row">
             <label class="field-label" for="rootPath">根目录</label>
             <input id="rootPath" type="text" autocomplete="off" spellcheck="false" />
@@ -117,46 +115,6 @@
         </section>
       </section>
 
-      <section id="panel-checklists" class="page hidden">
-        <div class="page-header">
-          <h2>清单</h2>
-          <p>可选：仅需要多清单、导出 CSV/SFV、加密或签名时使用。</p>
-        </div>
-        <section class="card">
-          <div class="toolbar">
-            <select id="checklistName"></select>
-            <button id="newChecklist" class="ghost">新建</button>
-            <button id="deleteChecklist" class="ghost">删除</button>
-          </div>
-          <div class="form-grid">
-            <label class="field-label" for="checksumPath">校验文件（可选）</label>
-            <div class="input-row"><input id="checksumPath" type="text" spellcheck="false" /><button id="browseChecksum" class="ghost">浏览</button></div>
-            <label class="field-label">格式</label>
-            <div class="segmented">
-              <label><input type="radio" name="checksumFormat" value="csv" checked /> CSV</label>
-              <label><input type="radio" name="checksumFormat" value="sfv" /> SFV</label>
-            </div>
-            <label class="field-label" for="password">密码</label>
-            <input id="password" type="password" autocomplete="new-password" />
-          </div>
-          <div class="toolbar">
-            <button id="exportChecksum" class="primary">导出</button>
-            <button id="importChecksum" class="ghost">导入</button>
-            <button id="encryptChecksum" class="ghost">加密</button>
-            <button id="decryptChecksum" class="ghost">解密导入</button>
-            <button id="signChecksum" class="ghost">签名</button>
-            <button id="verifyChecksum" class="ghost">验证签名</button>
-          </div>
-          <div class="status-row"><span id="checksumStatus" class="hint" aria-live="polite">就绪</span></div>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>状态</th><th>路径</th><th>哈希</th></tr></thead>
-              <tbody id="checklistRows"><tr><td colspan="3" class="empty">尚无条目</td></tr></tbody>
-            </table>
-          </div>
-        </section>
-      </section>
-
       <section id="panel-package" class="page hidden">
         <div class="page-header">
           <h2>打包</h2>
@@ -164,6 +122,13 @@
         </div>
         <section class="card">
           <h3 class="card-title">一键发布包</h3>
+          <div class="form-grid">
+            <label class="field-label" for="releaseChecklistName">发布清单</label>
+            <select id="releaseChecklistName"></select>
+          </div>
+          <div class="status-row">
+            <span id="releaseChecklistStatus" class="hint">尚未计算哈希；一键发布会自动生成 checksums.csv</span>
+          </div>
           <div class="form-grid">
             <label class="field-label" for="packPath">发布根目录</label>
             <div class="input-row"><input id="packPath" type="text" spellcheck="false" /><button id="browsePack" class="ghost">浏览</button></div>
@@ -173,6 +138,9 @@
           </div>
           <div class="status-row"><span id="releaseStatus" class="hint" aria-live="polite">就绪</span></div>
         </section>
+
+        <details class="advanced-panel">
+          <summary>高级配置</summary>
 
         <section class="card">
           <h3 class="card-title">校验记录</h3>
@@ -219,6 +187,41 @@
           </div>
           <div class="toolbar">
             <button id="packVerifier" class="ghost">打包验证器</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <h3 class="card-title">清单管理</h3>
+          <div class="toolbar">
+            <select id="checklistName"></select>
+            <button id="newChecklist" class="ghost">新建</button>
+            <button id="deleteChecklist" class="ghost">删除</button>
+          </div>
+          <div class="form-grid">
+            <label class="field-label" for="checksumPath">校验文件（可选）</label>
+            <div class="input-row"><input id="checksumPath" type="text" spellcheck="false" /><button id="browseChecksum" class="ghost">浏览</button></div>
+            <label class="field-label">格式</label>
+            <div class="segmented">
+              <label><input type="radio" name="checksumFormat" value="csv" checked /> CSV</label>
+              <label><input type="radio" name="checksumFormat" value="sfv" /> SFV</label>
+            </div>
+            <label class="field-label" for="password">密码</label>
+            <input id="password" type="password" autocomplete="new-password" />
+          </div>
+          <div class="toolbar">
+            <button id="exportChecksum" class="primary">导出</button>
+            <button id="importChecksum" class="ghost">导入</button>
+            <button id="encryptChecksum" class="ghost">加密</button>
+            <button id="decryptChecksum" class="ghost">解密导入</button>
+            <button id="signChecksum" class="ghost">签名</button>
+            <button id="verifyChecksum" class="ghost">验证签名</button>
+          </div>
+          <div class="status-row"><span id="checksumStatus" class="hint" aria-live="polite">就绪</span></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>状态</th><th>路径</th><th>哈希</th></tr></thead>
+              <tbody id="checklistRows"><tr><td colspan="3" class="empty">尚无条目</td></tr></tbody>
+            </table>
           </div>
         </section>
         </details>
@@ -274,7 +277,6 @@
     <nav class="floating-nav" aria-label="主要导航">
       <button class="nav-item active" data-panel="panel-files" aria-current="page" data-tooltip="扫描目录树，管理包含与排除文件"><span class="icon">Files</span><span>文件</span></button>
       <button class="nav-item" data-panel="panel-hashes" data-tooltip="并行计算校验值，支持暂停、停止与进度"><span class="icon">Hash</span><span>哈希</span></button>
-      <button class="nav-item" data-panel="panel-checklists" data-tooltip="管理多套清单，导出、签名或加密校验文件"><span class="icon">List</span><span>清单</span></button>
       <button class="nav-item" data-panel="panel-package" data-tooltip="生成签名记录和文件纠错档案，并打包验证器"><span class="icon">Pack</span><span>打包</span></button>
       <button class="nav-item" data-panel="panel-verify" data-tooltip="模拟目标目录验证，查看通过、缺失与多余文件"><span class="icon">Verify</span><span>校验</span></button>
     </nav>

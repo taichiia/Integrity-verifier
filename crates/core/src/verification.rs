@@ -87,7 +87,22 @@ pub fn run_verification(
         )));
     }
 
-    let entries = document.active_entries()?;
+    let ignored_paths = options
+        .ignored_paths
+        .iter()
+        .filter_map(|path| normalize_relative_path(path).ok())
+        .map(|path| path.to_ascii_lowercase())
+        .collect::<HashSet<_>>();
+    let entries = document
+        .active_entries()?
+        .iter()
+        .filter(|entry| {
+            normalize_relative_path(&entry.path)
+                .map(|path| !ignored_paths.contains(&path.to_ascii_lowercase()))
+                .unwrap_or(true)
+        })
+        .cloned()
+        .collect::<Vec<_>>();
     let mut details: Vec<Option<VerificationDetail>> = Vec::with_capacity(entries.len());
     details.resize_with(entries.len(), || None);
 
@@ -98,13 +113,6 @@ pub fn run_verification(
         manifest_indices.insert(normalized.clone(), index);
         manifest_paths.insert(normalized);
     }
-
-    let ignored_paths = options
-        .ignored_paths
-        .iter()
-        .filter_map(|path| normalize_relative_path(path).ok())
-        .map(|path| path.to_ascii_lowercase())
-        .collect::<Vec<_>>();
 
     let target = target_dir.canonicalize().map_err(CoreError::Io)?;
     let absolute_excludes = options
@@ -131,8 +139,8 @@ pub fn run_verification(
     let completed = Arc::new(AtomicUsize::new(0));
     let passed_count = Arc::new(AtomicUsize::new(0));
     let failed_count = Arc::new(AtomicUsize::new(0));
-    let known_missing = entries.len().saturating_sub(tasks.len());
-    let known_extra = extras.len();
+    let mut known_missing = entries.len();
+    let mut known_extra = 0_usize;
 
     let mut walker = WalkDir::new(&target).sort_by_file_name().into_iter();
     while let Some(result) = walker.next() {
@@ -159,9 +167,10 @@ pub fn run_verification(
                 .map(|value| value.to_ascii_lowercase());
             if options.exclude_rules.excludes_directory(&name)
                 || relative_dir.is_some_and(|relative| {
-                    ignored_paths.iter().any(|ignored| {
-                        relative == *ignored || relative.starts_with(&format!("{ignored}/"))
-                    })
+                    ignored_paths.contains(&relative)
+                        || ignored_paths
+                            .iter()
+                            .any(|ignored| relative.starts_with(&format!("{ignored}/")))
                 })
                 || absolute_excludes.contains(&full_key)
             {
@@ -186,15 +195,18 @@ pub fn run_verification(
             .map_err(|error| CoreError::Io(std::io::Error::other(error.to_string())))?;
         let relative = relative.to_string_lossy().replace('\\', "/");
         let normalized = normalize_relative_path(&relative)?;
-        if ignored_paths.iter().any(|ignored| {
-            let normalized_lower = normalized.to_ascii_lowercase();
-            normalized_lower == *ignored || normalized_lower.starts_with(&format!("{ignored}/"))
-        }) {
+        let normalized_lower = normalized.to_ascii_lowercase();
+        if ignored_paths.contains(&normalized_lower)
+            || ignored_paths
+                .iter()
+                .any(|ignored| normalized_lower.starts_with(&format!("{ignored}/")))
+        {
             continue;
         }
         if manifest_paths.contains(&normalized) {
             let index = manifest_indices[&normalized];
             let entry = &entries[index];
+            known_missing = known_missing.saturating_sub(1);
             tasks.push(HashTask {
                 detail_index: index,
                 relative_path: entry.path.clone(),
@@ -207,6 +219,7 @@ pub fn run_verification(
         ) {
             continue;
         } else {
+            known_extra += 1;
             extras.push(VerificationDetail {
                 path: relative,
                 status: "extra".to_string(),

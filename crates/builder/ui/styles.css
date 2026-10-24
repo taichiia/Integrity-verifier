@@ -519,8 +519,8 @@ td.hash-text,
   left: 50%;
   z-index: 4;
   display: flex;
-  min-width: 280px;
-  max-width: 560px;
+  min-width: 240px;
+  max-width: 480px;
   width: max-content;
   transform: translateX(-50%);
   background: var(--nav-bg);
@@ -921,7 +921,7 @@ input[type="radio"] {
 
   .floating-nav {
     width: calc(100% - 32px);
-    max-width: 480px;
+    max-width: 420px;
   }
 
   .nav-item {

@@ -1146,34 +1146,7 @@ fn recover_file(
     } else {
         None
     };
-    if let Some(source) = &source {
-        let mut hasher = Sha256::new();
-        let mut source = BufReader::new(source);
-        let mut buffer = vec![0_u8; 1024 * 1024];
-        loop {
-            let read = source
-                .read(&mut buffer)
-                .map_err(|error| error.to_string())?;
-            if read == 0 {
-                break;
-            }
-            hasher.update(&buffer[..read]);
-        }
-        if sha256_hex(&hasher.finalize()) == entry.sha256 {
-            let completed = processed.fetch_add(entry.size, Ordering::Relaxed) + entry.size;
-            if let Some(progress) = progress {
-                progress(completed.min(total), total, &entry.path);
-            }
-            return Ok(FileRecoveryDetail {
-                path: entry.path.clone(),
-                status: "healthy".to_string(),
-                message: "file is healthy".to_string(),
-            });
-        }
-        source
-            .seek(SeekFrom::Start(0))
-            .map_err(|error| error.to_string())?;
-    } else if usize::from(header.parity_shards) < usize::from(header.data_shards) {
+    if source.is_none() && usize::from(header.parity_shards) < usize::from(header.data_shards) {
         return Ok(FileRecoveryDetail {
             path: entry.path.clone(),
             status: "missing".to_string(),
