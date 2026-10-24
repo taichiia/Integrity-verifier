@@ -14,6 +14,12 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.exceptions import InvalidSignature
 
 
+SIGNED_PAYLOAD_MAGIC = b"FITSP1"
+SIGNED_PAYLOAD_VERSION = 1
+_ALGORITHM_IDS = {b"RSA": 1, b"ECDSA": 2}
+_ALGORITHM_NAMES = {value: key.decode("ascii") for key, value in _ALGORITHM_IDS.items()}
+
+
 def generate_aes_key() -> bytes:
     return AESGCM.generate_key(bit_length=256)
 
@@ -164,20 +170,34 @@ def create_signed_payload(
 ) -> bytes:
     json_bytes = json.dumps(data, ensure_ascii=False, sort_keys=True).encode("utf-8")
 
-    if signature_algorithm == "RSA":
-        private_key = load_rsa_private(private_key_pem)
-        sig = rsa_sign(json_bytes, private_key)
-    elif signature_algorithm == "ECDSA":
-        private_key = load_ecdsa_private(private_key_pem)
-        sig = ecdsa_sign(json_bytes, private_key)
-    else:
+    algorithm = signature_algorithm.encode("ascii")
+    if algorithm not in _ALGORITHM_IDS:
         raise ValueError(f"Unknown signature algorithm: {signature_algorithm}")
 
-    return base64.b64encode(json.dumps({
-        "data": base64.b64encode(json_bytes).decode("ascii"),
-        "signature": base64.b64encode(sig).decode("ascii"),
-        "algorithm": signature_algorithm,
-    }, ensure_ascii=False).encode("utf-8"))
+    try:
+        if signature_algorithm == "RSA":
+            private_key = load_rsa_private(private_key_pem)
+        else:
+            private_key = load_ecdsa_private(private_key_pem)
+    except Exception as exc:
+        raise ValueError(f"Unable to load private key: {exc}") from exc
+
+    algorithm_id = _ALGORITHM_IDS[algorithm]
+    # Sign the algorithm with the data so an envelope cannot be re-labelled
+    # as a different signature scheme after the fact.
+    signed_bytes = bytes((SIGNED_PAYLOAD_VERSION, algorithm_id)) + json_bytes
+    if signature_algorithm == "RSA":
+        sig = rsa_sign(signed_bytes, private_key)
+    else:
+        sig = ecdsa_sign(signed_bytes, private_key)
+
+    return (
+        SIGNED_PAYLOAD_MAGIC
+        + bytes((SIGNED_PAYLOAD_VERSION, algorithm_id))
+        + len(sig).to_bytes(4, "big")
+        + sig
+        + json_bytes
+    )
 
 
 def verify_signed_payload(
@@ -185,17 +205,39 @@ def verify_signed_payload(
     public_key_pem: bytes,
 ) -> dict | None:
     try:
-        wrapper = json.loads(base64.b64decode(payload).decode("utf-8"))
-        json_bytes = base64.b64decode(wrapper["data"])
-        sig = base64.b64decode(wrapper["signature"])
-        algorithm = wrapper["algorithm"]
+        if payload.startswith(SIGNED_PAYLOAD_MAGIC):
+            offset = len(SIGNED_PAYLOAD_MAGIC)
+            version = payload[offset]
+            algorithm_id = payload[offset + 1]
+            if version != SIGNED_PAYLOAD_VERSION or algorithm_id not in _ALGORITHM_NAMES:
+                return None
+            offset += 2
+            signature_length = int.from_bytes(payload[offset:offset + 4], "big")
+            offset += 4
+            sig = payload[offset:offset + signature_length]
+            if len(sig) != signature_length:
+                return None
+            json_bytes = payload[offset + signature_length:]
+            algorithm = _ALGORITHM_NAMES[algorithm_id]
+            signed_bytes = (
+                payload[len(SIGNED_PAYLOAD_MAGIC):len(SIGNED_PAYLOAD_MAGIC) + 2]
+                + json_bytes
+            )
+        else:
+            # Payloads written by FIT releases before the compact envelope
+            # remain verifiable, but new files no longer pay for JSON+base64.
+            wrapper = json.loads(base64.b64decode(payload).decode("utf-8"))
+            json_bytes = base64.b64decode(wrapper["data"])
+            sig = base64.b64decode(wrapper["signature"])
+            algorithm = wrapper["algorithm"]
+            signed_bytes = json_bytes
 
         if algorithm == "RSA":
             public_key = load_rsa_public(public_key_pem)
-            valid = rsa_verify(sig, json_bytes, public_key)
+            valid = rsa_verify(sig, signed_bytes, public_key)
         elif algorithm == "ECDSA":
             public_key = load_ecdsa_public(public_key_pem)
-            valid = ecdsa_verify(sig, json_bytes, public_key)
+            valid = ecdsa_verify(sig, signed_bytes, public_key)
         else:
             return None
 

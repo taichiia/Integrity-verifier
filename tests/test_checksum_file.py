@@ -26,7 +26,33 @@ def test_sfv_roundtrip():
         path = os.path.join(tmp, "hashes.sfv")
         write_sfv(entries, path)
         loaded = read_sfv(path)
-    assert loaded == [("file1.txt", "abc123")]
+    assert loaded == [("folder/file1.txt", "abc123")]
+
+
+def test_sfv_keeps_duplicate_base_names_apart():
+    entries = [
+        ("a/config.json", "hash-a"),
+        ("b/config.json", "hash-b"),
+        ("config.json", "hash-root"),
+    ]
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, "hashes.sfv")
+        write_sfv(entries, path)
+        loaded = read_sfv(path)
+
+    assert loaded == entries
+    assert len({name for name, _ in loaded}) == 3
+
+
+def test_sfv_reads_legacy_basename_entries():
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, "hashes.sfv")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("; legacy\napp.dll abc123\n*bin.dat def456\n")
+
+        loaded = read_sfv(path)
+
+    assert loaded == [("app.dll", "abc123"), ("bin.dat", "def456")]
 
 
 def test_load_checksum_entries_detects_csv_algorithm():

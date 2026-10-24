@@ -1,0 +1,19 @@
+[package]
+name = "fit-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Command-line bridge for FIT recovery records"
+
+[[bin]]
+name = "fit-rec"
+path = "src/main.rs"
+
+[dependencies]
+fit-core = { path = "../core" }
+hex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

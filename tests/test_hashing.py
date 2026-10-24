@@ -3,7 +3,13 @@ import tempfile
 
 import pytest
 
-from shared.hashing import hash_batch, hash_file, hash_generator
+from shared.hashing import (
+    SMALL_FILE_LIMIT,
+    default_workers,
+    hash_batch,
+    hash_file,
+    hash_generator,
+)
 
 
 def test_hash_file_sha256():
@@ -33,9 +39,7 @@ def test_hash_file_missing_raises():
         hash_file("no_such_file_xyz.bin")
 
 
-def test_hash_file_mmap_path(monkeypatch):
-    import shared.hashing
-    monkeypatch.setattr(shared.hashing, "ONE_GB", 0)
+def test_hash_file_large_file_path():
     with tempfile.NamedTemporaryFile(delete=False) as f:
         f.write(b"mmap data")
         path = f.name
@@ -46,6 +50,23 @@ def test_hash_file_mmap_path(monkeypatch):
         assert digest == expected
     finally:
         os.unlink(path)
+
+
+def test_hash_file_crosses_small_file_boundary():
+    payload = b"x" * (SMALL_FILE_LIMIT + 123)
+    with tempfile.NamedTemporaryFile(delete=False) as f:
+        f.write(payload)
+        path = f.name
+    try:
+        digest = hash_file(path, "sha256")
+        import hashlib
+        assert digest == hashlib.sha256(payload).hexdigest()
+    finally:
+        os.unlink(path)
+
+
+def test_default_hash_workers_are_bounded():
+    assert 1 <= default_workers() <= 4
 
 
 def test_hash_batch_preserves_order():

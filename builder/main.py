@@ -8,11 +8,7 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QApplication
 
 from builder.ui.main_window import BuilderMainWindow
-from shared.constants import (
-    CANVAS_CREAM, INK_BLACK,
-    FONT_FAMILY, FONT_BODY_SIZE, FONT_H1_SIZE, FONT_H2_SIZE, FONT_H3_SIZE,
-    FONT_BUTTON_SIZE, FONT_EYEBROW_SIZE,
-)
+from shared.constants import FONT_FAMILY, FONT_BODY_SIZE
 
 
 def main():
@@ -22,7 +18,7 @@ def main():
     app.setOrganizationName("FIT")
 
     font = QFont(FONT_FAMILY, FONT_BODY_SIZE)
-    font.setWeight(QFont.Weight.DemiBold)
+    font.setWeight(QFont.Weight.Normal)
     app.setFont(font)
 
     window = BuilderMainWindow()

@@ -35,6 +35,8 @@ class CardWidget(QFrame):
         self._toggle_btn = QPushButton()
         self._toggle_btn.setProperty("cssClass", "icon-circle")
         self._toggle_btn.setFixedSize(28, 28)
+        self._toggle_btn.setAccessibleName(f"expand-or-collapse-{title}")
+        self._toggle_btn.setToolTip("展开或收起此卡片")
         self._toggle_btn.setText("▴" if collapsed else "▾")
         self._toggle_btn.clicked.connect(self.toggle)
         header.addWidget(self._toggle_btn)

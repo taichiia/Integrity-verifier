@@ -1,5 +1,6 @@
 import base64
 import json
+import zlib
 
 
 class EmbeddedConfigError(Exception):
@@ -31,6 +32,11 @@ def load_embedded_config() -> dict:
         ciphertext = base64.b64decode(EMBEDDED_CONFIG_B64)
         from shared.crypto import aes_decrypt
         plaintext = aes_decrypt(ciphertext, key)
+        try:
+            plaintext = zlib.decompress(plaintext)
+        except zlib.error:
+            # Configs packed by older FIT releases were JSON without zlib.
+            pass
         return json.loads(plaintext.decode("utf-8"))
     except Exception as exc:
         raise EmbeddedConfigError(
@@ -50,6 +56,7 @@ def manifest_mismatch_message(config: dict) -> str | None:
         return None
 
     import hashlib
+    from shared.crypto import verify_signed_payload
     manifest_bytes = json.dumps(
         sorted(entries, key=lambda e: e.get("path", "")),
         ensure_ascii=False, sort_keys=True,
@@ -58,4 +65,21 @@ def manifest_mismatch_message(config: dict) -> str | None:
 
     if config.get("manifest_hash") and config.get("manifest_hash") != manifest_hash:
         return "内嵌校验清单与签名不匹配。数据可能已被篡改。"
+    if config.get("enable_signature_verify", False):
+        try:
+            from verifier._embedded_data import EMBEDDED_PUBLIC_KEY
+        except ImportError:
+            return None
+
+        try:
+            from verifier._embedded_data import EMBEDDED_MANIFEST_SIGNATURE
+        except ImportError:
+            return "内嵌校验清单缺少签名。数据可能已被篡改。"
+
+        decoded = verify_signed_payload(
+            base64.b64decode(EMBEDDED_MANIFEST_SIGNATURE),
+            base64.b64decode(EMBEDDED_PUBLIC_KEY),
+        )
+        if decoded is None or decoded.get("manifest_hash") != manifest_hash:
+            return "内嵌校验清单签名验证失败。数据可能已被篡改。"
     return None

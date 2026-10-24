@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>File Integrity Verifier</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="topbar">
+        <h1>文件完整性验证器</h1>
+        <div class="topbar-actions">
+          <button id="openGitHub" class="ghost" aria-label="打开 GitHub 仓库" title="打开 GitHub 仓库">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="brand-icon">
+              <path d="M12 .5A11.5 11.5 0 0 0 .5 12a11.5 11.5 0 0 0 7.86 10.92c.58.1.79-.25.79-.55v-2.16c-3.2.7-3.88-1.36-3.88-1.36-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.7 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.43-2.7 5.4-5.27 5.69.42.36.79 1.08.79 2.17v3.21c0 .3.21.66.8.55A11.5 11.5 0 0 0 23.5 12A11.5 11.5 0 0 0 12 .5z"/>
+            </svg>
+            GitHub
+          </button>
+          <button id="themeToggle" class="ghost icon-button" aria-label="切换主题" title="切换主题">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4V2m0 20v-2m0-14a6 6 0 100 12 6 6 0 000-12z"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <section class="panel source-panel" aria-label="记录来源">
+        <label>
+          <span>校验记录</span>
+          <input id="recordPath" type="text" autocomplete="off" spellcheck="false" />
+        </label>
+        <button id="browseRecord" class="ghost">浏览...</button>
+
+        <label>
+          <span>公钥</span>
+          <input id="publicKeyPath" type="text" autocomplete="off" spellcheck="false" />
+        </label>
+        <button id="browsePublicKey" class="ghost">浏览...</button>
+
+        <div class="source-status">
+          <span id="sourceStatus" class="hint">记录与公钥未加载</span>
+          <button id="makeKey" class="ghost">生成密钥</button>
+        </div>
+      </section>
+
+      <section id="panel-verify" class="page active">
+        <div class="page-header">
+          <h2>校验</h2>
+          <p>验证目标目录与当前校验记录的一致性。</p>
+        </div>
+
+        <section class="panel controls">
+          <label>
+            <span>目标目录</span>
+            <input id="targetPath" type="text" autocomplete="off" spellcheck="false" />
+          </label>
+          <button id="browseTarget" class="ghost">浏览...</button>
+
+          <label>
+            <span>校验清单</span>
+            <select id="checklistName" disabled>
+              <option value="">默认清单</option>
+            </select>
+          </label>
+          <button id="inspectRecord" class="ghost">读取清单</button>
+
+          <div class="button-group">
+            <button id="start" class="primary">开始验证</button>
+            <button id="stop" class="ghost">停止</button>
+            <button id="export" class="ghost">导出</button>
+          </div>
+        </section>
+
+        <section class="panel progress-panel">
+          <div class="progress"><div id="progressBar"></div></div>
+          <div id="verifyStatus" class="hint" aria-live="polite">就绪</div>
+        </section>
+
+        <section class="panel summary">
+          <div class="summary-item"><span>通过</span><strong id="passed">0</strong></div>
+          <div class="summary-item"><span>失败</span><strong id="failed">0</strong></div>
+          <div class="summary-item"><span>缺失</span><strong id="missing">0</strong></div>
+          <div class="summary-item"><span>多余</span><strong id="extra">0</strong></div>
+        </section>
+
+        <section class="panel results">
+          <table>
+            <thead>
+              <tr>
+                <th>状态</th>
+                <th>文件路径</th>
+                <th>期望哈希</th>
+                <th>实际哈希</th>
+              </tr>
+            </thead>
+            <tbody id="results"></tbody>
+          </table>
+        </section>
+      </section>
+
+      <section id="panel-recovery" class="page hidden">
+        <div class="page-header">
+          <h2>恢复</h2>
+          <p>从 .fitrec.parity 档案重建损坏或缺失的目标文件。</p>
+        </div>
+
+        <section class="panel controls recovery-controls">
+          <label>
+            <span>恢复档案</span>
+            <input id="recoveryPath" type="text" autocomplete="off" spellcheck="false" />
+          </label>
+          <button id="browseRecovery" class="ghost">浏览...</button>
+
+          <label>
+            <span>目标目录</span>
+            <input id="recoveryTargetPath" type="text" autocomplete="off" spellcheck="false" />
+          </label>
+          <button id="browseRecoveryTarget" class="ghost">浏览...</button>
+
+          <label>
+            <span>恢复输出目录</span>
+            <input id="recoveryOutputPath" type="text" autocomplete="off" spellcheck="false" />
+          </label>
+          <button id="browseRecoveryOutput" class="ghost">浏览...</button>
+
+          <div class="button-group">
+            <button id="inspectRecovery" class="ghost">读取档案</button>
+            <button id="startRecovery" class="primary">恢复文件</button>
+            <button id="stopRecovery" class="ghost">停止</button>
+          </div>
+        </section>
+
+        <section class="panel progress-panel">
+          <div class="progress"><div id="recoveryProgressBar"></div></div>
+          <div id="recoveryStatus" class="hint" aria-live="polite">就绪</div>
+        </section>
+
+        <section class="panel summary five">
+          <div class="summary-item"><span>已修复</span><strong id="repaired">0</strong></div>
+          <div class="summary-item"><span>健康</span><strong id="healthy">0</strong></div>
+          <div class="summary-item"><span>无法恢复</span><strong id="unrecoverable">0</strong></div>
+          <div class="summary-item"><span>失败</span><strong id="recoveryFailed">0</strong></div>
+          <div class="summary-item"><span>文件数</span><strong id="recoveryTotal">0</strong></div>
+        </section>
+
+        <section class="panel results">
+          <table>
+            <thead>
+              <tr>
+                <th>状态</th>
+                <th>文件路径</th>
+                <th>说明</th>
+              </tr>
+            </thead>
+            <tbody id="recoveryResults"></tbody>
+          </table>
+        </section>
+
+        <section class="panel recovery-help">
+          <div class="help-body">
+            <p><strong>流程：</strong>顶部公钥用于验证档案；下方选择 <code>.fitrec.parity</code>、受损目标目录和一个不同的输出目录。</p>
+            <p><strong>容量：</strong>每个文件按 1 MiB 分片做 Reed-Solomon。例如 8 数据分片 + 4 纠错分片，最多可修复该文件 4 个损坏分片。</p>
+            <p><strong>输出规则：</strong>健康文件只记录状态；损坏或缺失文件重建到输出目录，原始目标文件不会被覆写。</p>
+            <p><strong>缺失文件：</strong>只有当纠错分片数量不小于数据分片时才能从纯纠错分片重建；默认 8 + 4 无法重建整文件缺失。</p>
+            <p><strong>密钥：</strong>私钥用于生成新记录，请单独保管；公钥用于验证，可随记录分发。</p>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <nav class="floating-nav" aria-label="主要导航">
+      <button class="nav-item active" data-panel="panel-verify" aria-current="page" data-tooltip="验证目标目录与校验记录">
+        <span class="icon">Verify</span><span>校验</span>
+      </button>
+      <button class="nav-item" data-panel="panel-recovery" data-tooltip="使用 .fitrec.parity 重建损坏或缺失的目标文件">
+        <span class="icon">Recover</span><span>恢复</span>
+      </button>
+    </nav>
+    <script src="app.js"></script>
+  </body>
+</html>

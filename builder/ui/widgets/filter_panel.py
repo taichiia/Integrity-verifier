@@ -27,7 +27,7 @@ class FilterPanel(QWidget):
         self._enable_cb = QCheckBox("启用过滤")
         self._enable_cb.setChecked(True)
         self._enable_cb.setToolTip("开启/关闭所有过滤规则。关闭时所有文件都将被包含")
-        self._enable_cb.toggled.connect(self.filters_changed.emit)
+        self._enable_cb.toggled.connect(lambda _checked: self.filters_changed.emit())
         layout.addWidget(self._enable_cb)
 
         sep = QFrame()
@@ -51,7 +51,7 @@ class FilterPanel(QWidget):
         mode_group.addButton(self._whitelist_rb)
         mode_layout.addWidget(self._blacklist_rb)
         mode_layout.addWidget(self._whitelist_rb)
-        mode_group.buttonClicked.connect(self.filters_changed.emit)
+        mode_group.buttonClicked.connect(lambda _button: self.filters_changed.emit())
         layout.addLayout(mode_layout)
 
         sep2 = QFrame()
@@ -128,7 +128,7 @@ class FilterPanel(QWidget):
         self._min_spin.setRange(0, 9999999)
         self._min_spin.setSuffix(" KB")
         self._min_spin.setToolTip("排除小于此大小的文件。0 = 无限制")
-        self._min_spin.valueChanged.connect(self.filters_changed.emit)
+        self._min_spin.valueChanged.connect(lambda _value: self.filters_changed.emit())
         size_row.addWidget(self._min_spin)
         layout.addLayout(size_row)
 
@@ -139,7 +139,7 @@ class FilterPanel(QWidget):
         self._max_spin.setSpecialValueText("不限制")
         self._max_spin.setSuffix(" KB")
         self._max_spin.setToolTip("排除大于此大小的文件。0 = 无限制")
-        self._max_spin.valueChanged.connect(self.filters_changed.emit)
+        self._max_spin.valueChanged.connect(lambda _value: self.filters_changed.emit())
         size_row2.addWidget(self._max_spin)
         layout.addLayout(size_row2)
 

@@ -43,7 +43,10 @@ def test_builder_hash_flow_actually_updates_manifest(qapp, tmp_path):
             lambda: not window._step2._start_btn.isEnabled()
             or window._step2._manifest.toPlainText().count(" OK ") == 2
         )
-        assert _wait_for(lambda: window._step2._start_btn.isEnabled())
+        assert _wait_for(
+            lambda: window._step2._worker is None
+            and window._step2._start_btn.isEnabled()
+        )
         assert window._step2._manifest.toPlainText().count(" OK ") == 2
     finally:
         window.close()

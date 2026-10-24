@@ -1,5 +1,8 @@
 import hashlib
+import hmac
+import json
 import os
+import base64
 import sys
 import struct
 from ctypes import (
@@ -37,6 +40,129 @@ def verify_self_hash(embedded_hash_hex: str, salt: str = "") -> bool:
         return salted == embedded_hash_hex
     except Exception:
         return False
+
+
+SELF_META_PREFIX = b"FIT_SELF_META_V1="
+
+
+def append_self_integrity(
+    exe_path: str,
+    private_key_pem: bytes | str | None = None,
+    signature_algorithm: str = "RSA",
+) -> None:
+    """Append a trailer containing a hash/signature of the preceding EXE.
+
+    PyInstaller ignores unknown bytes after its CArchive cookie.  Keeping the
+    trailer outside the archive makes it stable to locate and simple to strip
+    when a new pack operation needs to regenerate it.
+    """
+    base_data = _read_without_self_trailer(exe_path)
+    # The verified prefix includes the newline separating the EXE/archive from
+    # the trailer, so generate the metadata over that exact boundary.
+    digest = hashlib.sha256(base_data + b"\n").hexdigest()
+    metadata: dict = {
+        "version": 1,
+        "algorithm": "sha256",
+        "self_hash": digest,
+    }
+
+    if private_key_pem:
+        from shared.crypto import create_signed_payload
+
+        signature = create_signed_payload(
+            {"algorithm": "sha256", "self_hash": digest},
+            private_key_pem if isinstance(private_key_pem, bytes)
+            else private_key_pem.encode("utf-8"),
+            signature_algorithm,
+        )
+        import base64
+
+        metadata["signature_algorithm"] = signature_algorithm
+        metadata["signature"] = base64.b64encode(signature).decode("ascii")
+
+    payload = json.dumps(metadata, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    with open(exe_path, "ab") as handle:
+        handle.write(b"\n" + SELF_META_PREFIX + payload + b"\n")
+
+
+def verify_self_integrity(exe_path: str | None = None) -> tuple[bool, str]:
+    """Return ``(ok, detail)``; an EXE without a FIT trailer is not covered."""
+    try:
+        path = exe_path or (
+            sys.executable if getattr(sys, "frozen", False) else sys.argv[0]
+        )
+        if not path or not os.path.isfile(path):
+            return True, "self integrity unavailable"
+
+        with open(path, "rb") as handle:
+            data = handle.read()
+
+        marker_pos = data.rfind(b"\n" + SELF_META_PREFIX)
+        if marker_pos < 0:
+            return True, "self integrity not packed"
+        if not data.endswith(b"\n"):
+            return False, "self integrity trailer is incomplete"
+
+        trailer = data[marker_pos + 1:-1]
+        if not trailer.startswith(SELF_META_PREFIX):
+            return False, "self integrity trailer is invalid"
+
+        try:
+            metadata = json.loads(
+                trailer[len(SELF_META_PREFIX):].decode("utf-8")
+            )
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return False, "self integrity trailer is corrupt"
+
+        prefix = data[:marker_pos + 1]
+        digest = hashlib.sha256(prefix).hexdigest()
+        if not hmac.compare_digest(
+            str(metadata.get("self_hash", "")), digest,
+        ):
+            return False, "verifier self hash mismatch"
+
+        signature = metadata.get("signature")
+        if signature:
+            public_key = _embedded_public_key()
+            if not public_key:
+                return False, "signed verifier is missing its public key"
+
+            from shared.crypto import verify_signed_payload
+
+            decoded = verify_signed_payload(
+                base64.b64decode(signature),
+                base64.b64decode(public_key),
+            )
+            expected = {
+                "algorithm": metadata.get("algorithm"),
+                "self_hash": digest,
+            }
+            if decoded != expected:
+                return False, "verifier self signature mismatch"
+        else:
+            if _embedded_public_key():
+                return False, "signed verifier is missing its self signature"
+
+        return True, "self integrity verified"
+    except Exception as exc:
+        return False, f"self integrity check failed: {exc}"
+
+
+def _read_without_self_trailer(exe_path: str) -> bytes:
+    with open(exe_path, "rb") as handle:
+        data = handle.read()
+    marker_pos = data.rfind(b"\n" + SELF_META_PREFIX)
+    if marker_pos < 0:
+        return data
+    return data[:marker_pos + 1]
+
+
+def _embedded_public_key() -> str | None:
+    try:
+        from verifier._embedded_data import EMBEDDED_PUBLIC_KEY
+    except ImportError:
+        return None
+    return EMBEDDED_PUBLIC_KEY or None
 
 
 def verify_embedded_signature(data: bytes, public_key_pem: bytes, algorithm: str = "RSA") -> bool:

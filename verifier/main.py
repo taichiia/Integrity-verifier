@@ -3,6 +3,13 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+
+if "--target" in sys.argv[1:]:
+    # CLI automation must not pay for the GUI stack.  The imports below stay
+    # visible to PyInstaller so the frozen executable still contains Qt.
+    from verifier.cli import main as cli_main
+    sys.exit(cli_main(sys.argv[1:]))
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QApplication, QMessageBox
@@ -18,11 +25,23 @@ def main():
     app.setApplicationVersion("1.0.0")
 
     font = QFont(FONT_FAMILY, FONT_BODY_SIZE)
-    font.setWeight(QFont.Weight.DemiBold)
+    font.setWeight(QFont.Weight.Normal)
     app.setFont(font)
 
+    from shared.protection import verify_self_integrity
+    self_ok, self_detail = verify_self_integrity()
+    if not self_ok:
+        QMessageBox.critical(
+            None,
+            "Verifier 自校验失败",
+            f"验证器自身校验失败:\n\n{self_detail}\n\n"
+            "程序已停止，验证结果不可信任。"
+        )
+        return 5
+
     EMBEDDED_CONFIG = _load_embedded_config()
-    _run_protection_checks(EMBEDDED_CONFIG)
+    if not _run_protection_checks(EMBEDDED_CONFIG):
+        return 0
 
     window = VerifierMainWindow(EMBEDDED_CONFIG)
     window.show()
@@ -51,7 +70,7 @@ def _run_protection_checks(config):
     enable_antisanbox = (config or {}).get("enable_antisanbox", False)
 
     if not enable_antidebug and not enable_antisanbox:
-        return
+        return True
 
     try:
         from shared.protection import (
@@ -67,13 +86,30 @@ def _run_protection_checks(config):
             details = "\n".join(
                 f"  - {c.name}" for c in assessment.checks
             ) or "  - (未知原因)"
-            QMessageBox.warning(
+            return _confirm_continue(
                 None, "环境异常",
                 f"检测到可疑运行环境:\n\n{details}\n\n"
-                "验证结果可能不可靠。"
+                "验证结果可能不可靠。是否仍要继续？"
             )
-    except Exception:
-        pass
+    except Exception as exc:
+        return _confirm_continue(
+            None,
+            "保护检查异常",
+            f"运行环境保护检查未能完整执行:\n\n{exc}\n\n"
+                "验证结果可能不可靠，请检查运行环境或重新获取验证器。是否仍要继续？"
+        )
+    return True
+
+
+def _confirm_continue(parent, title: str, message: str) -> bool:
+    answer = QMessageBox.question(
+        parent,
+        title,
+        message,
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        QMessageBox.StandardButton.No,
+    )
+    return answer == QMessageBox.StandardButton.Yes
 
 
 if __name__ == "__main__":

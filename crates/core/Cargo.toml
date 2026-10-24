@@ -1,0 +1,28 @@
+[package]
+name = "fit-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Shared manifest and recovery-record primitives for FIT"
+
+[lib]
+name = "fit_core"
+
+[dependencies]
+aes-gcm.workspace = true
+ed25519-dalek.workspace = true
+digest.workspace = true
+getrandom.workspace = true
+hex.workspace = true
+md-5.workspace = true
+pbkdf2.workspace = true
+reed-solomon-erasure.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+rayon.workspace = true
+walkdir.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

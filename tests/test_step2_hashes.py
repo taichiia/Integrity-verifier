@@ -19,14 +19,20 @@ class FakeHashWorker:
     def __init__(self, paths, algorithm="sha256", **kwargs):
         self.paths = paths
         self.algorithm = algorithm
+        self.cancel_requested = False
         self.progress = FakeSignal()
         self.speed = FakeSignal()
         self.file_done = FakeSignal()
+        self.files_done = FakeSignal()
+        self.completed = FakeSignal()
         self.finished = FakeSignal()
         self.error_occurred = FakeSignal()
 
     def start(self):
         pass
+
+    def cancel(self):
+        self.cancel_requested = True
 
 
 def test_hash_manifest_updates_on_file_done(qapp, tmp_path):
@@ -60,6 +66,37 @@ def test_start_hash_shows_pending_manifest(qapp, tmp_path, monkeypatch):
     assert step._checksum_entries[1]["status"] == "error"
     assert "PEND" in step._manifest.toPlainText()
     assert "ERR" in step._manifest.toPlainText()
+
+
+def test_stop_hash_marks_cancelled_result(qapp, tmp_path, monkeypatch):
+    output = tmp_path / "checksums.csv"
+    (tmp_path / "a.txt").write_text("payload", encoding="utf-8")
+    project = ProjectData()
+    project.base_directory = str(tmp_path)
+    project.checksum_entries = [
+        {"path": "a.txt", "hash": "", "status": "pending"},
+    ]
+    step = Step2Hashes(project)
+    step._out_path.setText(str(output))
+    monkeypatch.setattr(step2_hashes, "HashWorker", FakeHashWorker)
+
+    step._start_hash()
+    worker = step._worker
+    step._stop_hash()
+
+    assert worker.cancel_requested is True
+    assert step._cancel_requested is True
+    assert step._stop_btn.isEnabled() is False
+    assert step._pause_btn.isEnabled() is False
+
+    step._on_files_done([("a.txt", "abc", "")])
+    step._on_finished([("a.txt", "abc", "")])
+    step._on_worker_finished()
+
+    assert "已停止: 1 文件已哈希" in step._progress_panel._log.toPlainText()
+    assert step._stop_btn.isEnabled() is False
+    assert step._start_btn.isEnabled() is True
+    assert output.exists() is False
 
 
 def test_manifest_result_updates_are_indexed(qapp, tmp_path):

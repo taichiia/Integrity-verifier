@@ -8,7 +8,6 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QTextCharFormat, QColor, QFont
 
 from shared.constants import (
-    SUCCESS_GREEN, ERROR_RED, WARNING_AMBER,
     SPACING_SM, SPACING_MD,
     FONT_MONO_SIZE,
 )
@@ -36,6 +35,10 @@ class ProgressPanel(QFrame):
         self._progress.setToolTip("哈希计算完成百分比。绿色填充表示进度")
         layout.addWidget(self._progress)
 
+        self._completed = 0
+        self._total = 0
+        self._files_per_second = 0.0
+
         self._current_label = QLabel("等待中...")
         self._current_label.setProperty("cssClass", "hint")
         self._current_label.setWordWrap(True)
@@ -45,6 +48,7 @@ class ProgressPanel(QFrame):
         self._speed_label = QLabel("")
         self._speed_label.setProperty("cssClass", "hint")
         self._speed_label.setToolTip("计算速度（文件数/秒）。受磁盘I/O和CPU性能影响")
+        self._speed_label.setAccessibleName("计算速度和剩余时间")
         layout.addWidget(self._speed_label)
 
         log_label = QLabel("日志:")
@@ -70,24 +74,46 @@ class ProgressPanel(QFrame):
         pct = int(completed / total * 100) if total > 0 else 0
         self._progress.setValue(pct)
         self._progress.setFormat(f"{completed:,} / {total:,} ({pct}%)")
+        self._completed = completed
+        self._total = total
+        self._refresh_speed_label()
 
     def set_current_file(self, path: str):
         self._current_label.setText(path if path else "")
 
     def set_speed(self, files_per_sec: float):
-        self._speed_label.setText(f"速度: {files_per_sec:.1f} 文件/秒")
+        self._files_per_second = max(0.0, float(files_per_sec))
+        self._refresh_speed_label()
+
+    def _refresh_speed_label(self):
+        if self._files_per_second <= 0:
+            self._speed_label.setText("")
+            return
+
+        speed_text = f"速度: {self._files_per_second:.1f} 文件/秒"
+        if self._total <= 0 or self._completed <= 0:
+            self._speed_label.setText(speed_text)
+            return
+
+        remaining = (self._total - self._completed) / self._files_per_second
+        if remaining <= 0:
+            self._speed_label.setText(f"{speed_text} · 已完成")
+        else:
+            self._speed_label.setText(
+                f"{speed_text} · 剩余约 {_format_duration(remaining)}"
+            )
 
     def log_info(self, message: str):
         self._append_log("信息", message, QColor(get_palette()["text"]))
 
     def log_warning(self, message: str):
-        self._append_log("警告", message, QColor(WARNING_AMBER))
+        self._append_log("警告", message, QColor(get_palette()["warning"]))
 
     def log_error(self, message: str):
-        self._append_log("错误", message, QColor(ERROR_RED))
+        self._append_log("错误", message, QColor(get_palette()["danger"]))
 
     def log_success(self, message: str):
-        self._append_log("成功", message, QColor(SUCCESS_GREEN))
+        self._append_log("成功", message, QColor(get_palette()["success"]))
 
     def _append_log(self, level: str, message: str, color: QColor):
         ts = datetime.now().strftime("%H:%M:%S")
@@ -109,4 +135,22 @@ class ProgressPanel(QFrame):
         self._current_label.setText("等待中...")
         self._speed_label.setText("")
         self._log.clear()
+
+        self._completed = 0
+        self._total = 0
+        self._files_per_second = 0.0
+
+
+def _format_duration(seconds: float) -> str:
+    seconds = max(0, int(round(seconds)))
+    if seconds < 60:
+        return f"{seconds} 秒"
+    minutes, sec = divmod(seconds, 60)
+    if minutes < 60:
+        return f"{minutes} 分 {sec:02d} 秒"
+    hours, minute = divmod(minutes, 60)
+    if hours < 24:
+        return f"{hours} 小时 {minute:02d} 分"
+    days, hour = divmod(hours, 24)
+    return f"{days} 天 {hour:02d} 小时"
 

@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 class ProjectData:
     base_directory: str = ""
     file_paths: list[str] = field(default_factory=list)
+    exclude_paths: list[str] = field(default_factory=list)
     filter_extensions: list[str] = field(default_factory=list)
     filter_folders: list[str] = field(default_factory=list)
     filter_blacklist: bool = True
@@ -37,6 +38,10 @@ class ProjectData:
     verifier_enable_signature_verify: bool = True
     verifier_enable_antidebug: bool = False
     verifier_enable_antisanbox: bool = False
+    generate_fitrec: bool = False
+    fitrec_private_key_path: str = ""
+    fitrec_data_shards: int = 8
+    fitrec_parity_shards: int = 4
     verifier_active_checklist: str = "default"
     verifier_checklists: dict = field(default_factory=dict)
 

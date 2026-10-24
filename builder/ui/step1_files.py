@@ -1,5 +1,4 @@
 import os
-from datetime import datetime
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
@@ -8,9 +7,10 @@ from PySide6.QtWidgets import (
 )
 
 from shared.project import ProjectData
+from shared.file_rules import FileRules
 from shared.constants import SPACING_MD, SPACING_LG, SPACING_SM
 from builder.ui.widgets.filter_panel import FilterPanel
-from builder.ui.widgets.file_table import FileTableView
+from builder.ui.widgets.file_table import FileTableView, dedupe_key, path_key
 from builder.ui.workers.scan_worker import ScanWorker
 
 
@@ -21,6 +21,7 @@ class Step1Files(QWidget):
         self._worker: ScanWorker | None = None
         self._all_files: list[dict] = []
         self._filtered_files: list[dict] = []
+        self._known_paths: set[str] = set()
         self._base_dir = project.base_directory
 
         layout = QVBoxLayout(self)
@@ -52,12 +53,14 @@ class Step1Files(QWidget):
         dir_row.addWidget(self._dir_edit, 1)
 
         browse_btn = QPushButton("浏览...")
+        browse_btn.setAccessibleName("选择源文件夹")
         browse_btn.setToolTip("打开文件对话框选择要扫描的根文件夹")
         browse_btn.clicked.connect(self._browse_directory)
         dir_row.addWidget(browse_btn)
 
         rescan_btn = QPushButton("重新扫描")
         rescan_btn.setProperty("cssClass", "secondary")
+        rescan_btn.setAccessibleName("重新扫描当前文件夹")
         rescan_btn.setToolTip("重新扫描当前目录，更新文件列表")
         rescan_btn.clicked.connect(self._rescan)
         dir_row.addWidget(rescan_btn)
@@ -88,7 +91,9 @@ class Step1Files(QWidget):
         right_layout.setSpacing(SPACING_SM)
 
         self._file_table = FileTableView()
+        self._file_table.setAccessibleName("文件列表")
         self._file_table.files_dropped.connect(self._on_files_dropped)
+        self._file_table.files_added.connect(self._on_files_added)
         self._file_table.setToolTip(
             "文件列表。勾选/取消勾选来包含/排除文件。\n"
             "拖拽文件或文件夹到此处可直接添加。\n"
@@ -99,8 +104,8 @@ class Step1Files(QWidget):
         stats_bar = QFrame()
         stats_bar.setProperty("cssClass", "panel")
         stats_layout = QHBoxLayout(stats_bar)
-        stats_layout.setContentsMargins(12, 6, 12, 6)
-        stats_layout.setSpacing(SPACING_LG)
+        stats_layout.setContentsMargins(SPACING_SM, SPACING_SM, SPACING_SM, SPACING_SM)
+        stats_layout.setSpacing(SPACING_MD)
 
         self._total_label = QLabel("总计: 0")
         self._total_label.setToolTip("扫描到的文件总数（不含过滤）")
@@ -119,21 +124,24 @@ class Step1Files(QWidget):
 
         select_all = QPushButton("全选")
         select_all.setProperty("cssClass", "secondary")
-        select_all.setFixedHeight(26)
+        select_all.setMinimumHeight(32)
+        select_all.setAccessibleName("勾选所有文件")
         select_all.setToolTip("勾选所有文件")
         select_all.clicked.connect(lambda: self._file_table.model().select_all())
         stats_layout.addWidget(select_all)
 
         invert = QPushButton("反选")
         invert.setProperty("cssClass", "secondary")
-        invert.setFixedHeight(26)
+        invert.setMinimumHeight(32)
+        invert.setAccessibleName("反转文件勾选状态")
         invert.setToolTip("反转当前勾选状态")
         invert.clicked.connect(lambda: self._file_table.model().invert_selection())
         stats_layout.addWidget(invert)
 
-        add_btn = QPushButton("添加文件...")
+        add_btn = QPushButton("添加")
         add_btn.setProperty("cssClass", "secondary")
-        add_btn.setFixedHeight(26)
+        add_btn.setMinimumHeight(32)
+        add_btn.setAccessibleName("添加外部文件")
         add_btn.setToolTip("手动添加不在当前目录中的外部文件")
         add_btn.clicked.connect(lambda: self._file_table._add_external())
         stats_layout.addWidget(add_btn)
@@ -151,6 +159,7 @@ class Step1Files(QWidget):
         btn_row.addStretch()
 
         self._next_btn = QPushButton("✓ 完成，进入下一步 →")
+        self._next_btn.setAccessibleName("完成文件选择并进入哈希步骤")
         self._next_btn.setToolTip("保存当前选择并进入「生成校验文件」步骤。\n所有勾选的文件将作为待校验清单")
         self._next_btn.clicked.connect(self._go_next)
         btn_row.addWidget(self._next_btn)
@@ -178,7 +187,7 @@ class Step1Files(QWidget):
     def sync_to_project(self):
         p = self._project
         p.base_directory = self._base_dir
-        p.file_paths = [f["path"] for f in self._file_table.model().get_all()]
+        p.file_paths = [f["path"] for f in self._all_files]
 
         fd = self._filter_panel.get_filter_data()
         p.filter_enabled = fd["enabled"]
@@ -188,10 +197,19 @@ class Step1Files(QWidget):
         p.filter_min_size_kb = fd["min_size_kb"]
         p.filter_max_size_kb = fd["max_size_kb"]
 
-        checked = self._file_table.model().get_checked()
+        checked_keys = {
+            dedupe_key(f)
+            for f in self._file_table.model().get_checked()
+        }
         p.checksum_entries = [
             {"path": self._make_relative(f["path"]), "hash": "", "status": "pending"}
-            for f in checked
+            for f in self._all_files
+            if dedupe_key(f) in checked_keys
+        ]
+        p.exclude_paths = [
+            self._make_relative(f["path"])
+            for f in self._all_files
+            if dedupe_key(f) not in checked_keys
         ]
 
     def refresh_from_project(self):
@@ -201,100 +219,117 @@ class Step1Files(QWidget):
             self._dir_edit.setText(p.base_directory)
         self._filter_panel.apply_from_project(p)
 
-        if p.file_paths:
-            entries = []
-            for path in p.file_paths:
-                try:
-                    stat = os.stat(path)
-                    entries.append({
-                        "path": path,
-                        "size": stat.st_size,
-                        "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                        "checked": True,
-                    })
-                except OSError:
-                    pass
-            self._all_files = entries
-            self._apply_filters()
+        self._known_paths.clear()
+        entries = []
+        excluded = {
+            path_key(self._resolve_path(path))
+            for path in p.exclude_paths
+            if str(path).strip()
+        }
+        for path in p.file_paths:
+            full_path = self._resolve_path(path)
+            try:
+                stat = os.stat(full_path)
+            except OSError:
+                continue
+            key = path_key(full_path)
+            if key in self._known_paths:
+                continue
+            self._known_paths.add(key)
+            entries.append({
+                "_identity_key": key,
+                "path": full_path,
+                "size": stat.st_size,
+                "mtime": stat.st_mtime,
+                "checked": key not in excluded,
+            })
+        self._all_files = entries
+        self._apply_filters()
+
+    def set_project(self, project: ProjectData):
+        """Rebind to a freshly created or loaded project."""
+        self._project = project
+        self._known_paths.clear()
+        self._all_files = []
+        self._filtered_files = []
+        self._file_table.model().clear()
+        self.refresh_from_project()
+        self._update_stats()
 
     def scan_directory(self, directory: str):
         self._base_dir = directory
         self._project.base_directory = directory
         self._dir_edit.setText(directory)
 
-        fd = self._filter_panel.get_filter_data()
-        self._worker = ScanWorker(
-            [directory],
-            filter_extensions=fd["extensions"],
-            filter_folders=fd["folders"],
-            filter_blacklist=fd["blacklist"],
-            filter_min_size=fd["min_size_kb"] * 1024,
-            filter_max_size=fd["max_size_kb"] * 1024,
-        )
-        self._worker.file_found.connect(self._on_file_found)
+        # The scan always collects every file; filters are applied afterwards by
+        # _apply_filters() so nothing can silently drop out of the manifest.
+        self._worker = ScanWorker([directory])
+        self._worker.files_found.connect(self._on_files_found)
         self._worker.scan_complete.connect(self._on_scan_complete)
         self._worker.error_occurred.connect(self._on_scan_error)
 
         self._all_files.clear()
+        self._filtered_files.clear()
+        self._known_paths.clear()
         self._file_table.model().clear()
+        self._file_table.set_scanning(True)
         self._update_stats()
         self._worker.start()
 
-    def _on_file_found(self, path: str, size: int, modified: str):
-        entry = {"path": path, "size": size, "modified": modified, "checked": True}
-        self._all_files.append(entry)
-        self._file_table.model().add_files([entry])
+    def _on_files_found(self, files: list[tuple[str, int, float]]):
+        entries = []
+        for path, size, mtime in files:
+            key = path_key(path)
+            if key in self._known_paths:
+                continue
+            self._known_paths.add(key)
+            entries.append({
+                "_identity_key": key,
+                "path": path,
+                "size": size,
+                "mtime": mtime,
+                "checked": True,
+            })
+        if not entries:
+            return
+        self._all_files.extend(entries)
+        self._file_table.model().add_files(entries)
         self._update_stats()
 
-    def _on_scan_complete(self, total: int):
+    def _on_scan_complete(self, total: int, skipped: int = 0):
         self._worker = None
+        self._file_table.set_scanning(False)
         self._apply_filters()
         self._update_stats()
+        if skipped:
+            from builder.ui.widgets.toast import show_toast
+            show_toast(
+                self,
+                f"扫描完成，但有 {skipped} 个项目无法读取，已跳过",
+                level="warning",
+            )
 
     def _on_scan_error(self, msg: str):
-        pass
+        from builder.ui.widgets.toast import show_toast
+        self._file_table.set_scanning(False)
+        show_toast(self, f"扫描警告: {msg}", duration_ms=5000, level="warning")
 
     def _on_filters_changed(self):
         self._filter_timer.start()
 
     def _apply_filters(self):
-        if not self._all_files:
-            return
         fd = self._filter_panel.get_filter_data()
         if not fd["enabled"]:
             self._file_table.model().set_files(self._all_files)
             self._filtered_files = self._all_files
         else:
-            exts = [e.lower() for e in fd["extensions"]]
-            folders = [f.lower() for f in fd["folders"]]
-            min_bytes = fd["min_size_kb"] * 1024
-            max_bytes = fd["max_size_kb"] * 1024
-
-            filtered = []
-            for entry in self._all_files:
-                path = entry["path"]
-                ext = os.path.splitext(os.path.basename(path))[1].lower().lstrip(".")
-
-                if min_bytes > 0 and entry["size"] < min_bytes:
-                    continue
-                if max_bytes > 0 and entry["size"] > max_bytes:
-                    continue
-
-                ext_match = ext in exts
-                if exts:
-                    if fd["blacklist"] and ext_match:
-                        continue
-                    if not fd["blacklist"] and not ext_match:
-                        continue
-
-                if folders:
-                    has_folder_match = self._path_contains_folder(path, folders)
-                    if fd["blacklist"] and has_folder_match:
-                        continue
-                    if not fd["blacklist"] and not has_folder_match:
-                        continue
-
-                filtered.append(entry)
+            # The same FileRules object travels with the packed verifier, so
+            # the preview and the shipped checks must agree on ignored files.
+            rules = FileRules.from_filter_data(fd)
+            filtered = [
+                entry for entry in self._all_files
+                if not rules.excludes(entry["path"], entry["size"])
+            ]
             self._filtered_files = filtered
             self._file_table.model().set_files(filtered)
         self._update_stats()
@@ -302,27 +337,48 @@ class Step1Files(QWidget):
     def _update_stats(self):
         total = len(self._all_files)
         filtered = total - len(self._filtered_files)
-        selected = len(self._file_table.model().get_checked())
+        selected = self._file_table.model().checked_count()
         self._total_label.setText(f"总计: {total:,}")
         self._filtered_label.setText(f"已过滤: {filtered:,}")
         self._selected_label.setText(f"已选: {selected:,}")
 
+    def _on_files_added(self, entries: list[dict]):
+        fresh = []
+        for entry in entries:
+            key = dedupe_key(entry)
+            if key in self._known_paths:
+                continue
+            self._known_paths.add(key)
+            entry["_identity_key"] = key
+            fresh.append(entry)
+        if not fresh:
+            return
+        self._all_files.extend(fresh)
+        self._apply_filters()
+
     def _on_files_dropped(self, paths: list[str]):
         entries = []
         for p in paths:
+            key = path_key(p)
+            if key in self._known_paths:
+                continue
             try:
                 stat = os.stat(p)
-                entries.append({
-                    "path": p,
-                    "size": stat.st_size,
-                    "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                    "checked": True,
-                })
             except OSError:
-                pass
+                continue
+            self._known_paths.add(key)
+            entries.append({
+                "_identity_key": key,
+                "path": p,
+                "size": stat.st_size,
+                "mtime": stat.st_mtime,
+                "checked": True,
+            })
+        if not entries:
+            return
         self._all_files.extend(entries)
-        self._filtered_files.extend(entries)
-        self._file_table.model().add_files(entries)
+        # Run dropped files through the same filter pipeline as scanned files.
+        self._apply_filters()
         self._update_stats()
 
     def _rescan(self):
@@ -337,8 +393,8 @@ class Step1Files(QWidget):
                 return abs_path
         return abs_path
 
-    @staticmethod
-    def _path_contains_folder(path: str, folders: set) -> bool:
-        parts = set(p.lower() for p in path.replace("\\", "/").split("/") if p)
-        return bool(parts & set(folders))
+    def _resolve_path(self, path: str) -> str:
+        if os.path.isabs(path) or not self._base_dir:
+            return path
+        return os.path.join(self._base_dir, path)
 

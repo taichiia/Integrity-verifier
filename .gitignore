@@ -12,6 +12,13 @@ __pycache__/
 .eggs/
 dist/
 *.manifest
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.htmlcov/
+htmlcov/
+.coverage.*
+coverage.xml
 
 # Virtual environments
 .venv/
@@ -26,10 +33,19 @@ env/
 
 # Project files (user data)
 *.fvp
+*.fitbuilder
 *.signed
+*.sig
+*.key
+*.key.pub
+*.fitrec
+*.fitrec.pub
+*.fitrec.parity
+*.enc
 
 # Auto-generated embedded data
 verifier/_embedded_data.py
+verifier/_embedded_data.py.build-stash
 
 # OS
 Thumbs.db
@@ -44,6 +60,24 @@ Desktop.ini
 *.bak
 *.log
 
+# Rust
+target/
+crates/*/gen/
+crates/*/.git/
+crates/*/.git-disabled/
+crates/*/.gitignore
+
+# Local development-only reports and benchmarks
+FINAL_REPORT.md
+FINAL_TEST_REPORT.md
+PROGRESS.md
+SUMMARY.md
+tools/
+
 # Generated artifacts
 .coverage
 screenshot_*.png
+
+# Local UI screenshot/audit runs (may contain machine paths)
+ui_audit/
+prevPROGRESS.md

@@ -1,0 +1,18 @@
+[package]
+name = "fit-verifier"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Tauri verifier shell for FIT"
+
+[build-dependencies]
+tauri-build.workspace = true
+
+[dependencies]
+fit-core = { path = "../core" }
+hex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tauri.workspace = true
+tauri-plugin-dialog.workspace = true
+tauri-plugin-opener.workspace = true

@@ -1,9 +1,9 @@
 from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QPoint
 from PySide6.QtWidgets import QLabel, QFrame, QGraphicsOpacityEffect
 from shared.constants import (
-    INK_BLACK, CANVAS_CREAM, SUCCESS_GREEN, ERROR_RED, WARNING_AMBER,
     RADIUS_CHIP, FONT_BODY_SIZE, SPACING_MD,
 )
+from shared.theme import get_palette
 
 
 class Toast(QFrame):
@@ -17,13 +17,14 @@ class Toast(QFrame):
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
-        colors = {
-            "info": INK_BLACK,
-            "success": SUCCESS_GREEN,
-            "warning": WARNING_AMBER,
-            "error": ERROR_RED,
+        pal = get_palette()
+        styles = {
+            "info": (pal["text"], pal["surface"]),
+            "success": (pal["success"], pal["success_bg"]),
+            "warning": (pal["warning"], pal["warning_bg"]),
+            "error": (pal["danger"], pal["danger_bg"]),
         }
-        bg = colors.get(level, INK_BLACK)
+        fg, bg = styles.get(level, (pal["text"], pal["surface"]))
 
         self.setStyleSheet(f"""
             Toast {{
@@ -34,7 +35,7 @@ class Toast(QFrame):
         """)
 
         label = QLabel(message, self)
-        label.setStyleSheet(f"color: {CANVAS_CREAM}; font-size: {FONT_BODY_SIZE}px; "
+        label.setStyleSheet(f"color: {fg}; font-size: {FONT_BODY_SIZE}px; "
                            f"font-weight: 500; background: transparent;")
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         label.adjustSize()

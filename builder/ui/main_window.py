@@ -23,7 +23,7 @@ from shared.project import ProjectData, save_project, load_project
 from shared.constants import (
     WINDOW_DEFAULT_WIDTH, WINDOW_DEFAULT_HEIGHT,
     WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT,
-    INK_BLACK, CANVAS_CREAM, SPACING_MD,
+    INK_BLACK, CANVAS_CREAM, SPACING_MD, SPACING_SM,
 )
 
 
@@ -125,11 +125,13 @@ class BuilderMainWindow(QMainWindow):
         self.setCentralWidget(central)
 
         layout = QVBoxLayout(central)
-        layout.setContentsMargins(SPACING_MD, 0, SPACING_MD, 0)
+        layout.setContentsMargins(SPACING_MD, 0, SPACING_MD, SPACING_SM)
         layout.setSpacing(0)
 
-        self._step_nav = StepNav()
-        layout.addWidget(self._step_nav)
+        page_host = QWidget()
+        page_layout = QVBoxLayout(page_host)
+        page_layout.setContentsMargins(0, 0, 0, SPACING_MD)
+        page_layout.setSpacing(0)
 
         self._stack = QStackedWidget()
         self._step1 = Step1Files(self._project)
@@ -140,7 +142,10 @@ class BuilderMainWindow(QMainWindow):
         self._stack.addWidget(self._step2)
         self._stack.addWidget(self._step3)
 
-        layout.addWidget(self._stack, 1)
+        page_layout.addWidget(self._stack, 1)
+        layout.addWidget(page_host, 1)
+        self._step_nav = StepNav()
+        layout.addWidget(self._step_nav, 0, Qt.AlignmentFlag.AlignHCenter)
 
     def _setup_status(self):
         self._status = QStatusBar()
@@ -274,9 +279,12 @@ class BuilderMainWindow(QMainWindow):
         self._step3.sync_to_project()
 
     def _refresh_all_steps(self):
-        self._step1.refresh_from_project()
-        self._step2.refresh_from_project()
-        self._step3.refresh_from_project()
+        # The steps hold a reference to the project object, so they must be
+        # rebound whenever a new project is created or loaded. Otherwise every
+        # later edit lands in the discarded project.
+        self._step1.set_project(self._project)
+        self._step2.set_project(self._project)
+        self._step3.set_project(self._project)
 
     def _update_status(self):
         step_names = ["正在选择文件...", "正在生成校验...", "正在配置打包..."]

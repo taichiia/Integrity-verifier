@@ -1,8 +1,10 @@
 import base64
+import json
 
 import pytest
 
 from shared.crypto import (
+    SIGNED_PAYLOAD_MAGIC,
     aes_decrypt,
     aes_encrypt,
     create_signed_payload,
@@ -21,6 +23,8 @@ from shared.crypto import (
     rsa_sign,
     rsa_verify,
     verify_signed_payload,
+    load_rsa_private,
+    rsa_sign,
 )
 
 
@@ -114,12 +118,15 @@ def test_verify_signed_payload_tampered_returns_none():
     payload = create_signed_payload({"hello": "world"}, kp.private_pem, "RSA")
     decoded = verify_signed_payload(payload, kp.public_pem)
     assert decoded is not None
-    wrapper = base64.b64decode(payload).decode("utf-8")
-    import json
-    obj = json.loads(wrapper)
-    obj["data"] = base64.b64encode(b"tampered").decode("ascii")
-    tampered = base64.b64encode(json.dumps(obj).encode()).decode()
-    assert verify_signed_payload(tampered.encode(), kp.public_pem) is None
+    signature_length = int.from_bytes(
+        payload[len(SIGNED_PAYLOAD_MAGIC) + 2:len(SIGNED_PAYLOAD_MAGIC) + 6],
+        "big",
+    )
+    body_offset = len(SIGNED_PAYLOAD_MAGIC) + 6 + signature_length
+    body = json.loads(payload[body_offset:].decode("utf-8"))
+    body["hello"] = "tampered"
+    tampered = payload[:body_offset] + json.dumps(body).encode("utf-8")
+    assert verify_signed_payload(tampered, kp.public_pem) is None
 
 
 def test_verify_signed_payload_wrong_key_returns_none():
@@ -133,3 +140,26 @@ def test_create_signed_payload_unknown_algorithm():
     kp = generate_rsa_keypair()
     with pytest.raises(ValueError, match="Unknown signature algorithm"):
         create_signed_payload({}, kp.private_pem, "UNKNOWN")
+
+
+def test_verify_legacy_signed_payload_format():
+    kp = generate_rsa_keypair()
+    data = {"hello": "legacy"}
+    json_bytes = json.dumps(data, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    private_key = load_rsa_private(kp.private_pem)
+    signature = rsa_sign(json_bytes, private_key)
+    wrapper = {
+        "data": base64.b64encode(json_bytes).decode("ascii"),
+        "signature": base64.b64encode(signature).decode("ascii"),
+        "algorithm": "RSA",
+    }
+    payload = base64.b64encode(json.dumps(wrapper).encode("utf-8"))
+
+    assert verify_signed_payload(payload, kp.public_pem) == data
+
+
+def test_verify_rejects_unknown_payload_version():
+    kp = generate_rsa_keypair()
+    payload = create_signed_payload({"hello": "world"}, kp.private_pem, "RSA")
+    tampered = payload[:6] + bytes((255,)) + payload[7:]
+    assert verify_signed_payload(tampered, kp.public_pem) is None

@@ -8,13 +8,13 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QLineEdit, QPushButton, QProgressBar, QCheckBox, QTableView,
     QHeaderView, QSplitter,
-    QFileDialog, QMessageBox, QMenu, QComboBox, QFrame,
+    QFileDialog, QMessageBox, QMenu, QComboBox, QFrame, QApplication, QStyle,
 )
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QFont, QKeySequence
 
 from verifier.ui.theme import generate_verifier_stylesheet
 from verifier.report import STATUS_LABELS
-from shared.theme import set_theme_mode, get_theme_mode
+from shared.theme import set_theme_mode, get_theme_mode, get_palette
 from shared.preferences import (
     create_settings,
     load_theme_mode,
@@ -24,8 +24,7 @@ from shared.preferences import (
 )
 from shared.constants import (
     SLATE_GRAY, DUST_TAUPE,
-    SUCCESS_GREEN, ERROR_RED, WARNING_AMBER, INFO_BLUE,
-    SPACING_MD, SPACING_LG,
+    SPACING_SM, SPACING_MD, SPACING_LG,
     FONT_BODY_SIZE, FONT_EYEBROW_SIZE, FONT_MONO_SIZE,
     FONT_FAMILY_MONO,
 )
@@ -47,6 +46,13 @@ class VerifierResultModel(QAbstractTableModel):
     HEADERS = ["状态", "文件路径", "期望哈希值", "实际哈希值"]
 
     STATUS_ICONS = STATUS_LABELS
+    STATUS_ICON_SPECS = {
+        "pass": QStyle.StandardPixmap.SP_DialogApplyButton,
+        "fail": QStyle.StandardPixmap.SP_DialogCancelButton,
+        "missing": QStyle.StandardPixmap.SP_MessageBoxWarning,
+        "extra": QStyle.StandardPixmap.SP_FileDialogDetailedView,
+        "error": QStyle.StandardPixmap.SP_MessageBoxCritical,
+    }
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -75,15 +81,24 @@ class VerifierResultModel(QAbstractTableModel):
                 return row.get("actual", "")
 
         if role == Qt.ItemDataRole.ForegroundRole:
+            pal = get_palette()
             colors = {
-                "pass": QColor(SUCCESS_GREEN),
-                "fail": QColor(ERROR_RED),
-                "missing": QColor(WARNING_AMBER),
-                "extra": QColor(INFO_BLUE),
-                "error": QColor(ERROR_RED),
+                "pass": QColor(pal["success"]),
+                "fail": QColor(pal["danger"]),
+                "missing": QColor(pal["warning"]),
+                "extra": QColor(pal["accent"]),
+                "error": QColor(pal["danger"]),
             }
-            from shared.theme import get_palette
             return colors.get(row["status"], QColor(get_palette()["text"]))
+
+        if role == Qt.ItemDataRole.DecorationRole and col == self.COL_STATUS:
+            icon_spec = self.STATUS_ICON_SPECS.get(row["status"])
+            if icon_spec is not None:
+                return QApplication.style().standardIcon(icon_spec)
+            return None
+
+        if role == Qt.ItemDataRole.AccessibleTextRole and col == self.COL_STATUS:
+            return self.STATUS_ICONS.get(row["status"], "未知")
 
         if role == Qt.ItemDataRole.FontRole:
             if col in (self.COL_PATH, self.COL_EXPECTED, self.COL_ACTUAL):
@@ -268,7 +283,7 @@ class VerifierMainWindow(QMainWindow):
         left.setMinimumWidth(250)
         left_layout = QVBoxLayout(left)
         left_layout.setContentsMargins(SPACING_MD, SPACING_MD, SPACING_MD, SPACING_MD)
-        left_layout.setSpacing(SPACING_MD)
+        left_layout.setSpacing(SPACING_SM)
 
         path_label = QLabel("目标路径:")
         path_label.setProperty("cssClass", "eyebrow")
@@ -313,12 +328,14 @@ class VerifierMainWindow(QMainWindow):
 
         btn_row = QHBoxLayout()
         self._start_btn = QPushButton("开始验证")
+        self._start_btn.setAccessibleName("开始验证文件完整性")
         self._start_btn.setToolTip("开始扫描目标目录并计算文件哈希值，与内嵌校验清单进行对比")
         self._start_btn.clicked.connect(self._start_verification)
         btn_row.addWidget(self._start_btn)
 
         self._stop_btn = QPushButton("停止")
         self._stop_btn.setProperty("cssClass", "secondary")
+        self._stop_btn.setAccessibleName("停止文件验证")
         self._stop_btn.setToolTip("停止当前正在进行的验证流程。已完成的结果将保留")
         self._stop_btn.clicked.connect(self._stop_verification)
         self._stop_btn.setEnabled(False)
@@ -351,6 +368,7 @@ class VerifierMainWindow(QMainWindow):
         self._result_table = ResultTableView()
         self._result_model = VerifierResultModel()
         self._result_table.setModel(self._result_model)
+        self._result_table.setAccessibleName("验证结果列表")
         self._result_table.setSelectionBehavior(self._result_table.SelectionBehavior.SelectRows)
         self._result_table.setSortingEnabled(True)
         self._result_table.setShowGrid(False)
@@ -383,38 +401,47 @@ class VerifierMainWindow(QMainWindow):
 
         layout.addWidget(splitter, 1)
 
-        bottom = QHBoxLayout()
-
         self._passed_label = QLabel("通过: 0")
         self._passed_label.setProperty("cssClass", "stat-ok")
         self._passed_label.setToolTip("哈希值与记录完全一致的文件数")
-        bottom.addWidget(self._passed_label)
 
         self._failed_label = QLabel("失败: 0")
         self._failed_label.setProperty("cssClass", "stat-err")
         self._failed_label.setToolTip("哈希值与记录不匹配的文件数。这些文件可能已被修改或损坏")
-        bottom.addWidget(self._failed_label)
 
         self._missing_label = QLabel("缺失: 0")
         self._missing_label.setProperty("cssClass", "stat-warn")
         self._missing_label.setToolTip("在校验清单中存在但在目标目录中找不到的文件数")
-        bottom.addWidget(self._missing_label)
 
         self._extra_label = QLabel("多余: 0")
         self._extra_label.setProperty("cssClass", "stat-info")
         self._extra_label.setToolTip("在目标目录中存在但不在校验清单中的文件数")
-        bottom.addWidget(self._extra_label)
 
+        summary_panel = QFrame()
+        summary_panel.setProperty("cssClass", "panel")
+        summary_layout = QHBoxLayout(summary_panel)
+        summary_layout.setContentsMargins(SPACING_SM, SPACING_SM, SPACING_SM, SPACING_SM)
+        summary_layout.setSpacing(SPACING_SM)
+        summary_layout.addWidget(self._passed_label)
+        summary_layout.addWidget(self._failed_label)
+        summary_layout.addWidget(self._missing_label)
+        summary_layout.addWidget(self._extra_label)
+        summary_layout.addStretch()
+        right_layout.addWidget(summary_panel, 0, Qt.AlignmentFlag.AlignHCenter)
+
+        bottom = QHBoxLayout()
         bottom.addStretch()
 
         export_btn = QPushButton("导出报告")
         export_btn.setProperty("cssClass", "secondary")
+        export_btn.setAccessibleName("导出校验报告")
         export_btn.setToolTip("将验证结果导出为 CSV、TXT 或 JSON 格式的报告文件")
         export_btn.clicked.connect(self._export_report)
         bottom.addWidget(export_btn)
 
         copy_fail_btn = QPushButton("复制失败列表")
         copy_fail_btn.setProperty("cssClass", "secondary")
+        copy_fail_btn.setAccessibleName("复制失败文件路径")
         copy_fail_btn.setToolTip("将验证失败/缺失/错误的文件路径复制到剪贴板，每行一个路径")
         copy_fail_btn.clicked.connect(self._copy_failed)
         bottom.addWidget(copy_fail_btn)
@@ -443,7 +470,7 @@ class VerifierMainWindow(QMainWindow):
         self._target_path.setText(path)
 
         if not os.path.isdir(path):
-            self._target_path.setStyleSheet(f"color: {ERROR_RED};")
+            self._target_path.setStyleSheet(f"color: {get_palette()['danger']};")
             QMessageBox.warning(
                 self, "路径不存在",
                 f"配置的目标路径不存在:\n\n{path}\n\n"
@@ -539,11 +566,24 @@ class VerifierMainWindow(QMainWindow):
             os.path.normpath(os.path.join(target, e["path"])).lower()
             for e in entries
         )
+        ignored_paths = {
+            os.path.normpath(str(path).replace("\\", "/"))
+            .replace("\\", "/")
+            .lower()
+            for path in (self._config.get("exclude_paths") or [])
+            if str(path).strip()
+        }
+        from shared.file_rules import FileRules
+        rules = FileRules.from_config(self._config.get("exclude_rules"))
         # A frozen verifier usually sits beside the target files; never flag itself as extra.
         self_exe = ""
         if getattr(sys, "frozen", False):
             self_exe = os.path.normcase(os.path.abspath(sys.executable))
-        for root, _, files in os.walk(target):
+        for root, dirs, files in os.walk(target, followlinks=False):
+            dirs.sort()
+            files.sort()
+            if rules.enabled and rules.blacklist:
+                dirs[:] = [d for d in dirs if not rules.excludes_directory(d)]
             for f in files:
                 full = os.path.join(root, f)
                 if self_exe and os.path.normcase(os.path.abspath(full)) == self_exe:
@@ -553,6 +593,21 @@ class VerifierMainWindow(QMainWindow):
                         rel = os.path.relpath(full, target)
                     except ValueError:
                         rel = full
+                    rel_key = (
+                        os.path.normpath(rel.replace("\\", "/"))
+                        .replace("\\", "/")
+                        .lower()
+                    )
+                    if rel_key in ignored_paths:
+                        continue
+                    try:
+                        size = os.path.getsize(full)
+                    except OSError:
+                        size = 0
+                    # Ignored files stay out of the manifest on purpose, so
+                    # they must not be reported as extra either.
+                    if rules.excludes(rel, size):
+                        continue
                     self._all_results.append({
                         "path": rel, "status": "extra",
                         "expected": "", "actual": "",
@@ -568,16 +623,18 @@ class VerifierMainWindow(QMainWindow):
             return
 
         from shared.hash_worker import HashWorker
-        self._worker = HashWorker(paths_to_hash, algorithm)
-        self._worker.progress.connect(self._on_verify_progress)
-        self._worker.file_done.connect(
-            lambda p, d, e: self._on_verify_file(p, d, e, expected_map, target)
+        worker = HashWorker(paths_to_hash, algorithm)
+        self._worker = worker
+        worker.progress.connect(self._on_verify_progress)
+        worker.files_done.connect(
+            lambda results: self._on_verify_files(results, expected_map, target)
         )
-        self._worker.finished.connect(lambda _: self._on_verify_done())
-        self._worker.error_occurred.connect(
+        worker.completed.connect(lambda _: self._on_verify_done())
+        worker.finished.connect(lambda w=worker: self._on_hash_worker_stopped(w))
+        worker.error_occurred.connect(
             lambda msg: self._current_label.setText(f"错误: {msg}")
         )
-        self._worker.start()
+        worker.start()
 
     def _on_verify_progress(self, completed: int, total: int, path: str):
         self._progress.setValue(int(completed / total * 100) if total else 0)
@@ -588,6 +645,17 @@ class VerifierMainWindow(QMainWindow):
 
     def _on_verify_file(self, path: str, digest: str, error: str,
                         expected_map: dict, target_dir: str):
+        self._on_verify_files(
+            [(path, digest, error)], expected_map, target_dir
+        )
+
+    def _on_verify_files(self, results: list[tuple[str, str, str]],
+                         expected_map: dict, target_dir: str):
+        for path, digest, error in results:
+            self._append_verify_result(path, digest, error, expected_map, target_dir)
+
+    def _append_verify_result(self, path: str, digest: str, error: str,
+                              expected_map: dict, target_dir: str):
         try:
             rel = os.path.relpath(path, target_dir)
         except ValueError:
@@ -609,7 +677,6 @@ class VerifierMainWindow(QMainWindow):
         })
 
     def _on_verify_done(self):
-        self._worker = None
         self._start_btn.setEnabled(True)
         self._stop_btn.setEnabled(False)
         self._checklist_combo.setEnabled(True)
@@ -621,6 +688,10 @@ class VerifierMainWindow(QMainWindow):
 
         self._sort_results_for_display()
         self._filter_results()
+
+    def _on_hash_worker_stopped(self, worker):
+        if self._worker is worker:
+            self._worker = None
 
     def _sort_results_for_display(self):
         manifest_index = {

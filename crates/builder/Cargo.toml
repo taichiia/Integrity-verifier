@@ -1,0 +1,27 @@
+[package]
+name = "fit-builder"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Tauri builder shell for FIT"
+
+[build-dependencies]
+tauri-build.workspace = true
+
+[lib]
+name = "fit_builder"
+
+[[bin]]
+name = "fit-builder"
+path = "src/main.rs"
+
+[dependencies]
+fit-core = { path = "../core" }
+serde.workspace = true
+serde_json.workspace = true
+tauri.workspace = true
+tauri-plugin-dialog.workspace = true
+tauri-plugin-opener.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

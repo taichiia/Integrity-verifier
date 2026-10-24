@@ -1,9 +1,11 @@
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QPushButton
 
 from builder.ui.main_window import BuilderMainWindow
 from builder.ui.widgets.file_table import FileTableModel
 from shared.preferences import create_settings
 from shared.theme import set_theme_mode
+from shared.theme import generate_builder_stylesheet
 from verifier.ui.main_window import VerifierResultModel
 
 
@@ -45,6 +47,26 @@ def test_builder_registers_all_step_shortcuts(qapp, tmp_path):
         set_theme_mode("light")
 
 
+def test_builder_file_step_controls_have_accessible_names(qapp, tmp_path):
+    settings = create_settings(tmp_path / "settings.ini")
+    window = BuilderMainWindow(settings=settings)
+    try:
+        step = window._step1
+        names = {
+            child.accessibleName()
+            for child in step.findChildren(QPushButton)
+        }
+        assert "选择源文件夹" in names
+        assert "重新扫描当前文件夹" in names
+        assert "勾选所有文件" in names
+        assert "反转文件勾选状态" in names
+        assert "添加外部文件" in names
+        assert "完成文件选择并进入哈希步骤" in names
+    finally:
+        window.close()
+        set_theme_mode("light")
+
+
 def test_verifier_hash_columns_use_stable_mono_font(qapp):
     model = VerifierResultModel()
     model.set_results([{
@@ -54,5 +76,14 @@ def test_verifier_hash_columns_use_stable_mono_font(qapp):
     for column in (model.COL_PATH, model.COL_EXPECTED, model.COL_ACTUAL):
         font = model.data(model.index(0, column), Qt.ItemDataRole.FontRole)
         assert font is not None
-        assert font.family() == "JetBrains Mono"
+        assert font.family() == "Cascadia Mono"
         assert font.pointSize() == 12
+
+
+def test_result_table_exposes_fluent_keyboard_focus_ring(qapp):
+    for mode in ("light", "dark"):
+        set_theme_mode(mode)
+        stylesheet = generate_builder_stylesheet(mode)
+        assert "QTableView:focus" in stylesheet
+        assert "QTableView::item:focus" in stylesheet
+        assert "2px solid" in stylesheet

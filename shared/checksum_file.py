@@ -1,6 +1,5 @@
 import csv
 import io
-from pathlib import Path
 
 
 def write_csv(
@@ -47,7 +46,12 @@ def write_sfv(
     with open(filepath, "w", encoding="utf-8") as f:
         f.write(f"; Generated: {_timestamp()}\n")
         for rel_path, digest in entries:
-            name = Path(rel_path).name
+            # Keep the relative path: two files with the same base name (for
+            # example nested config.json files) must stay distinguishable.
+            name = rel_path.replace("\\", "/")
+            if name.startswith("./"):
+                name = name[2:]
+            name = name.lstrip("/")
             f.write(f"{name} {digest}\n")
 
 
@@ -60,7 +64,11 @@ def read_sfv(filepath: str) -> list[tuple[str, str]]:
                 continue
             parts = line.rsplit(" ", 1)
             if len(parts) == 2:
-                entries.append((parts[0], parts[1]))
+                name = parts[0]
+                # Some SFV writers prefix binary-mode names with "*".
+                if name.startswith("*"):
+                    name = name[1:]
+                entries.append((name, parts[1]))
     return entries
 
 

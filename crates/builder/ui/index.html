@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>File Integrity Builder</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="topbar">
+        <div class="identity">
+          <h1>File Integrity Builder</h1>
+          <p id="projectName" class="hint">Untitled</p>
+        </div>
+        <div class="topbar-actions">
+          <button id="openGitHub" class="ghost" aria-label="打开 GitHub 仓库" title="打开 GitHub 仓库">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="brand-icon">
+              <path d="M12 .5A11.5 11.5 0 0 0 .5 12a11.5 11.5 0 0 0 7.86 10.92c.58.1.79-.25.79-.55v-2.16c-3.2.7-3.88-1.36-3.88-1.36-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.7 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.8 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.43-2.7 5.4-5.27 5.69.42.36.79 1.08.79 2.17v3.21c0 .3.21.66.8.55A11.5 11.5 0 0 0 23.5 12A11.5 11.5 0 0 0 12 .5z"/>
+            </svg>
+            GitHub
+          </button>
+          <button id="newProject" class="ghost">新建</button>
+          <button id="openProject" class="ghost">打开</button>
+          <button id="saveProject" class="ghost">保存</button>
+          <button id="themeToggle" class="ghost icon-button" aria-label="切换主题" title="切换主题">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4V2m0 20v-2m0-14a6 6 0 100 12 6 6 0 000-12z"/></svg>
+          </button>
+          <button id="tutorialButton" class="ghost icon-button" aria-label="教程" title="教程">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M9.4 9a2.8 2.8 0 1 1 5.2 1.4c0 1.7-2.6 2.2-2.6 3.6" />
+              <path d="M12 17.2h.01" />
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <section id="panel-files" class="page">
+        <div class="page-header">
+          <h2>文件</h2>
+          <p>扫描完整目录树，再应用过滤和勾选。</p>
+        </div>
+        <section class="card">
+          <div class="field-row">
+            <label class="field-label" for="rootPath">根目录</label>
+            <input id="rootPath" type="text" autocomplete="off" spellcheck="false" />
+            <button id="browseRoot" class="ghost">浏览</button>
+          </div>
+          <div class="toolbar">
+            <button id="scan" class="primary">扫描</button>
+            <button id="stopScan" class="ghost">停止</button>
+            <button id="addFiles" class="ghost">添加文件</button>
+            <button id="applyFilters" class="ghost">应用过滤</button>
+            <button id="selectAll" class="ghost">全选</button>
+            <button id="invertSelection" class="ghost">反选</button>
+            <button id="clearFiles" class="ghost">清空</button>
+          </div>
+          <div class="filters">
+            <label><input id="filterEnabled" type="checkbox" checked /> 启用</label>
+            <label><input id="filterBlacklist" type="checkbox" checked /> 黑名单</label>
+            <label><input id="prehashEnabled" type="checkbox" checked /> 扫描时预哈希</label>
+            <input id="extensions" type="text" placeholder="扩展名" />
+            <input id="folders" type="text" placeholder="目录" />
+            <input id="minSize" type="number" min="0" value="0" title="最小 KB" />
+            <input id="maxSize" type="number" min="0" value="0" title="最大 KB" />
+          </div>
+          <div class="status-row">
+            <span id="scanStatus" class="hint" aria-live="polite">就绪</span>
+            <span id="fileCount" class="badge">0 个文件</span>
+          </div>
+          <div class="table-tools">
+            <input id="fileSearch" type="search" placeholder="搜索相对或绝对路径" aria-label="搜索相对或绝对路径" />
+            <button id="selectAllMatches" class="ghost">全选匹配</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>包含</th><th>相对路径</th><th>大小</th><th><span>操作</span><button id="expandAllFiles" class="ghost" aria-pressed="false">展开全部</button></th></tr>
+              </thead>
+              <tbody id="fileRows"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section id="panel-hashes" class="page hidden">
+        <div class="page-header">
+          <h2>哈希</h2>
+          <p>并行计算校验值，支持暂停与导出。</p>
+        </div>
+        <section class="card">
+          <div class="toolbar">
+            <label class="field-label" for="algorithm">算法</label>
+            <select id="algorithm">
+              <option value="sha256">SHA-256</option>
+              <option value="sha512">SHA-512</option>
+              <option value="md5">MD5</option>
+            </select>
+            <button id="startHash" class="primary">开始</button>
+            <button id="pauseHash" class="ghost">暂停</button>
+            <button id="stopHash" class="ghost">停止</button>
+          </div>
+          <div class="progress"><div id="hashBar"></div></div>
+          <div class="status-row">
+            <span id="hashStatus" class="hint" aria-live="polite">就绪</span>
+            <span id="hashStats" class="badge">0 / 0</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>状态</th><th>路径</th><th>哈希</th></tr></thead>
+              <tbody id="hashRows"><tr><td colspan="3" class="empty">尚无结果</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section id="panel-checklists" class="page hidden">
+        <div class="page-header">
+          <h2>清单</h2>
+          <p>管理多套校验清单，导出 CSV 或 SFV。</p>
+        </div>
+        <section class="card">
+          <div class="toolbar">
+            <select id="checklistName"></select>
+            <button id="newChecklist" class="ghost">新建</button>
+            <button id="deleteChecklist" class="ghost">删除</button>
+          </div>
+          <div class="form-grid">
+            <label class="field-label" for="checksumPath">校验文件</label>
+            <div class="input-row"><input id="checksumPath" type="text" spellcheck="false" /><button id="browseChecksum" class="ghost">浏览</button></div>
+            <label class="field-label">格式</label>
+            <div class="segmented">
+              <label><input type="radio" name="checksumFormat" value="csv" checked /> CSV</label>
+              <label><input type="radio" name="checksumFormat" value="sfv" /> SFV</label>
+            </div>
+            <label class="field-label" for="password">密码</label>
+            <input id="password" type="password" autocomplete="new-password" />
+          </div>
+          <div class="toolbar">
+            <button id="exportChecksum" class="primary">导出</button>
+            <button id="importChecksum" class="ghost">导入</button>
+            <button id="encryptChecksum" class="ghost">加密</button>
+            <button id="decryptChecksum" class="ghost">解密导入</button>
+            <button id="signChecksum" class="ghost">签名</button>
+            <button id="verifyChecksum" class="ghost">验证签名</button>
+          </div>
+          <div class="status-row"><span id="checksumStatus" class="hint" aria-live="polite">就绪</span></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>状态</th><th>路径</th><th>哈希</th></tr></thead>
+              <tbody id="checklistRows"><tr><td colspan="3" class="empty">尚无条目</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section id="panel-package" class="page hidden">
+        <div class="page-header">
+          <h2>打包</h2>
+          <p>生成独立恢复记录并打包原生验证器。</p>
+        </div>
+        <section class="card">
+          <h3 class="card-title">校验记录</h3>
+          <div class="form-grid">
+            <label class="field-label" for="recordPath">校验记录 (.fitrec)</label>
+            <div class="input-row"><input id="recordPath" type="text" spellcheck="false" /><button id="browseRecord" class="ghost">浏览</button></div>
+            <label class="field-label" for="privateKeyPath">Ed25519 私钥</label>
+            <div class="input-row"><input id="privateKeyPath" type="text" spellcheck="false" /><button id="browseKey" class="ghost">浏览</button><button id="makeKey" class="ghost">生成</button></div>
+          </div>
+        </section>
+
+        <section class="card">
+          <h3 class="card-title">文件恢复档案</h3>
+          <div class="form-grid">
+            <label class="field-label" for="recoveryMode">恢复模式</label>
+            <select id="recoveryMode">
+              <option value="crossFile" selected>跨文件整文件（推荐）</option>
+              <option value="singleFile">单文件损坏修复</option>
+              <option value="dual">单文件 + 跨文件</option>
+            </select>
+            <label class="field-label" for="dataShards">数据分片</label><input id="dataShards" type="number" min="1" max="254" value="16" />
+            <label class="field-label" for="parityShards">纠错分片</label><input id="parityShards" type="number" min="1" max="254" value="4" />
+            <label class="field-label" for="shardSize">分片大小 (MiB)</label><input id="shardSize" type="number" min="0.0625" step="0.0625" value="1" />
+          </div>
+          <div class="estimate-row">
+            <span>预计恢复档案</span><strong id="recoveryEstimate">--</strong>
+            <span>预计总输出</span><strong id="recoveryTotalEstimate">--</strong>
+            <span>预计可恢复</span><strong id="recoveryRecoverable">--</strong>
+            <span class="hint" id="recoveryEstimateDetail">选择源目录后自动计算</span>
+          </div>
+          <div class="toolbar">
+            <button id="generate" class="primary">生成记录和纠错档案</button>
+          </div>
+          <div class="progress"><div id="recordBar"></div></div>
+          <div class="status-row"><span id="recordStatus" class="hint" aria-live="polite">就绪</span></div>
+        </section>
+
+        <section class="card">
+          <h3 class="card-title">验证器打包</h3>
+          <div class="form-grid">
+            <label class="field-label" for="verifierPath">验证器 EXE</label>
+            <div class="input-row"><input id="verifierPath" type="text" readonly spellcheck="false" /><button id="locateVerifier" class="ghost">查找</button></div>
+            <label class="field-label" for="packPath">输出目录</label>
+            <div class="input-row"><input id="packPath" type="text" spellcheck="false" /><button id="browsePack" class="ghost">浏览</button></div>
+          </div>
+          <div class="toolbar">
+            <button id="packVerifier" class="ghost">打包验证器</button>
+          </div>
+        </section>
+        <section class="card help-card">
+          <h3>恢复 / 纠错码使用方法</h3>
+          <p>生成会产出两类恢复资产：<code>.fitrec</code> 是 Ed25519 签名的校验清单；<code>.fitrec.parity</code> 是针对原始文件的 Reed-Solomon 恢复档案。点击「生成」可创建新的 Ed25519 密钥对。</p>
+          <ul>
+            <li><strong>跨文件模式：</strong>按大小相近的文件分组，每个文件占用一个 lane。默认 16 + 4 约增加 25% 档案体积；一个文件完全缺失时，可使用同组健康文件和 parity 重建。</li>
+            <li><strong>单文件模式：</strong>适合只保护损坏文件。8 + 4 可修复一个文件内 4 个坏分片，但默认不能重建已删除文件。</li>
+            <li><strong>双层模式：</strong>先尝试单文件修复，缺失文件再用跨文件 parity 重建。体积约等于两种模式相加。</li>
+            <li><strong>恢复目标：</strong>恢复文件写入单独输出目录，原始文件不会被覆写。若整个目录都不存在，仅靠 parity-only 档案无法凭空还原所有文件。</li>
+            <li><strong>分发：</strong>校验至少需要 <code>.fitrec</code> 和 <code>.fitrec.pub</code>；要恢复文件还要给接收方 <code>.fitrec.parity</code>。Ed25519 私钥不要分发，单独保存在安全位置。</li>
+            <li><strong>验证端操作：</strong>在「校验」页选择目标目录、记录和公钥；在「恢复」页选择 <code>.fitrec.parity</code>、目标目录和输出目录。</li>
+          </ul>
+        </section>
+      </section>
+
+      <section id="panel-verify" class="page hidden">
+        <div class="page-header">
+          <h2>校验</h2>
+          <p>使用当前清单模拟验证，或导入外部校验文件。</p>
+        </div>
+        <section class="card">
+          <div class="field-row">
+            <label class="field-label" for="verifyPath">验证目录</label>
+            <input id="verifyPath" type="text" autocomplete="off" spellcheck="false" />
+            <button id="browseVerify" class="ghost">浏览</button>
+          </div>
+          <div class="toolbar">
+            <button id="simulate" class="primary">开始验证</button>
+            <button id="stopVerify" class="ghost">停止</button>
+          </div>
+          <div class="progress"><div id="verifyBar"></div></div>
+          <div class="status-row"><span id="recordStatus" class="hint" aria-live="polite">就绪</span></div>
+          <div class="summary">
+            <div><span>通过</span><strong id="passed">0</strong></div>
+            <div><span>失败</span><strong id="failed">0</strong></div>
+            <div><span>缺失</span><strong id="missing">0</strong></div>
+            <div><span>多余</span><strong id="extra">0</strong></div>
+          </div>
+          <div class="table-wrap details">
+            <table>
+              <thead><tr><th>状态</th><th>路径</th><th>期望</th><th>实际</th></tr></thead>
+              <tbody id="verifyRows"><tr><td colspan="4" class="empty">尚无结果</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <nav class="floating-nav" aria-label="主要导航">
+      <button class="nav-item active" data-panel="panel-files" aria-current="page" data-tooltip="扫描目录树，管理包含与排除文件"><span class="icon">Files</span><span>文件</span></button>
+      <button class="nav-item" data-panel="panel-hashes" data-tooltip="并行计算校验值，支持暂停、停止与进度"><span class="icon">Hash</span><span>哈希</span></button>
+      <button class="nav-item" data-panel="panel-checklists" data-tooltip="管理多套清单，导出、签名或加密校验文件"><span class="icon">List</span><span>清单</span></button>
+      <button class="nav-item" data-panel="panel-package" data-tooltip="生成签名记录和文件纠错档案，并打包验证器"><span class="icon">Pack</span><span>打包</span></button>
+      <button class="nav-item" data-panel="panel-verify" data-tooltip="模拟目标目录验证，查看通过、缺失与多余文件"><span class="icon">Verify</span><span>校验</span></button>
+    </nav>
+    <div id="tutorialOverlay" class="tour-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="tutorialTitle">
+      <div class="tour-shade" data-edge="all"></div>
+      <div class="tour-shade" data-edge="top"></div>
+      <div class="tour-shade" data-edge="bottom"></div>
+      <div class="tour-shade" data-edge="left"></div>
+      <div class="tour-shade" data-edge="right"></div>
+      <div class="tour-highlight"></div>
+      <section class="tour-card">
+        <header class="tour-card-header">
+          <h2 id="tutorialTitle"></h2>
+          <span id="tutorialProgress"></span>
+        </header>
+        <p id="tutorialBody"></p>
+        <ul id="tutorialPoints" class="tour-points" hidden></ul>
+        <footer class="tour-actions">
+          <button id="tutorialSkip" class="ghost">跳过</button>
+          <div class="tour-nav">
+            <button id="tutorialPrev" class="ghost">上一步</button>
+            <button id="tutorialNext" class="primary">下一步</button>
+          </div>
+        </footer>
+      </section>
+    </div>
+    <div id="toastHost" class="toast-host" aria-live="polite"></div>
+    <script src="app.js"></script>
+  </body>
+</html>

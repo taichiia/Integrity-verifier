@@ -1,6 +1,7 @@
 import hashlib
 import json
 import base64
+import zlib
 
 from builder.ui.workers.pack_worker import PackWorker
 from shared.preferences import create_settings
@@ -23,6 +24,7 @@ def test_pack_worker_embeds_active_checklist(tmp_path):
             "second": second_entries,
         },
         "verifier_active_checklist": "second",
+        "exclude_paths": ["vendor.dat"],
         "verifier_embed_encrypted": True,
     }
     output = tmp_path / "_embedded_data.py"
@@ -39,7 +41,12 @@ def test_pack_worker_embeds_active_checklist(tmp_path):
     )
     key = json.loads(key_line.split("=", 1)[1])
     payload = json.loads(payload_line.split("=", 1)[1])
-    config = json.loads(aes_decrypt(base64.b64decode(payload), base64.b64decode(key)))
+    plaintext = aes_decrypt(base64.b64decode(payload), base64.b64decode(key))
+    try:
+        plaintext = zlib.decompress(plaintext)
+    except zlib.error:
+        pass
+    config = json.loads(plaintext)
     manifest_bytes = json.dumps(
         sorted(second_entries, key=lambda entry: entry.get("path", "")),
         ensure_ascii=False, sort_keys=True,
@@ -51,6 +58,7 @@ def test_pack_worker_embeds_active_checklist(tmp_path):
         "second": second_entries,
     }
     assert config["active_checklist"] == "second"
+    assert config["exclude_paths"] == ["vendor.dat"]
     assert config["manifest_hash"] == hashlib.sha256(manifest_bytes).hexdigest()
 
 

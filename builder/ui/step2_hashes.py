@@ -1,7 +1,8 @@
 import os
+import base64
 from datetime import datetime
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QTextCursor
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QPushButton,
@@ -27,8 +28,21 @@ class Step2Hashes(QWidget):
         self._worker: HashWorker | None = None
         self._checksum_entries: list[dict] = []
         self._entry_rows: dict[str, int] = {}
+        self._worker_rows: dict[str, int] = {}
         self._is_running = False
         self._is_paused = False
+        self._cancel_requested = False
+        self._pending_manifest_rows: set[int] = set()
+        self._manifest_refresh_timer = QTimer(self)
+        self._manifest_refresh_timer.setSingleShot(True)
+        self._manifest_refresh_timer.setInterval(150)
+        self._manifest_refresh_timer.timeout.connect(self._flush_manifest_updates)
+        self._pending_progress: tuple[int, int, str] | None = None
+        self._pending_speed: float | None = None
+        self._progress_refresh_timer = QTimer(self)
+        self._progress_refresh_timer.setSingleShot(True)
+        self._progress_refresh_timer.setInterval(100)
+        self._progress_refresh_timer.timeout.connect(self._flush_progress_updates)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, SPACING_MD, 0, 0)
@@ -193,6 +207,14 @@ class Step2Hashes(QWidget):
         self._pause_btn.clicked.connect(self._toggle_pause)
         btn_row.addWidget(self._pause_btn)
 
+        self._stop_btn = QPushButton("停止")
+        self._stop_btn.setProperty("cssClass", "secondary")
+        self._stop_btn.setEnabled(False)
+        self._stop_btn.setAccessibleName("停止哈希计算")
+        self._stop_btn.setToolTip("请求停止哈希计算。已计算完成的结果会保留，但不会自动保存")
+        self._stop_btn.clicked.connect(self._stop_hash)
+        btn_row.addWidget(self._stop_btn)
+
         self._save_btn = QPushButton("保存校验文件")
         self._save_btn.setProperty("cssClass", "secondary")
         self._save_btn.setToolTip("将计算结果保存为 CSV 或 SFV 格式的校验文件")
@@ -237,6 +259,20 @@ class Step2Hashes(QWidget):
         if p.checksum_entries:
             self._checksum_entries = p.checksum_entries
             self._update_manifest()
+
+    def set_project(self, project: ProjectData):
+        """Rebind to a freshly created or loaded project."""
+        self._project = project
+        self._checksum_entries = []
+        self._entry_rows.clear()
+        self._worker_rows.clear()
+        self._pending_manifest_rows.clear()
+        self._pending_progress = None
+        self._pending_speed = None
+        self._manifest_refresh_timer.stop()
+        self._progress_refresh_timer.stop()
+        self.refresh_from_project()
+        self._update_manifest()
 
     def _toggle_advanced(self):
         visible = not self._advanced_panel.isVisible()
@@ -311,9 +347,16 @@ class Step2Hashes(QWidget):
 
         self._is_running = True
         self._is_paused = False
+        self._cancel_requested = False
+        self._manifest_refresh_timer.stop()
+        self._progress_refresh_timer.stop()
+        self._pending_manifest_rows.clear()
+        self._pending_progress = None
+        self._pending_speed = None
         self._start_btn.setEnabled(False)
         self._pause_btn.setEnabled(True)
         self._pause_btn.setText("暂停")
+        self._stop_btn.setEnabled(True)
         valid_paths = {self._normalized_path(path) for path in paths}
         self._checksum_entries = []
         for entry in entries:
@@ -325,6 +368,12 @@ class Step2Hashes(QWidget):
                 "hash": "",
                 "status": "pending" if is_valid else "error",
             })
+        self._worker_rows = {}
+        for row, entry in enumerate(self._checksum_entries):
+            path = entry["path"]
+            full_path = path if os.path.isabs(path) else os.path.join(base, path)
+            if self._normalized_path(full_path) in valid_paths:
+                self._worker_rows[full_path] = row
         self._update_manifest()
 
         self._progress_panel.clear()
@@ -336,7 +385,9 @@ class Step2Hashes(QWidget):
         self._worker.progress.connect(self._on_progress)
         self._worker.speed.connect(self._on_speed)
         self._worker.file_done.connect(self._on_file_done)
-        self._worker.finished.connect(self._on_finished)
+        self._worker.files_done.connect(self._on_files_done)
+        self._worker.completed.connect(self._on_finished)
+        self._worker.finished.connect(self._on_worker_finished)
         self._worker.error_occurred.connect(self._on_error)
         self._worker.start()
 
@@ -354,12 +405,34 @@ class Step2Hashes(QWidget):
             self._pause_btn.setText("继续")
             self._progress_panel.log_info("已暂停 — 当前批次完成后将停止")
 
+    def _stop_hash(self):
+        if not self._worker:
+            return
+        self._cancel_requested = True
+        self._worker.cancel()
+        self._stop_btn.setEnabled(False)
+        self._pause_btn.setEnabled(False)
+        self._progress_panel.log_warning("已请求停止 — 正在取消未开始的任务")
+
     def _on_progress(self, completed: int, total: int, path: str):
-        self._progress_panel.set_progress(completed, total)
-        self._progress_panel.set_current_file(path)
+        self._pending_progress = (completed, total, path)
+        if not self._progress_refresh_timer.isActive():
+            self._progress_refresh_timer.start()
 
     def _on_speed(self, fps: float):
-        self._progress_panel.set_speed(fps)
+        self._pending_speed = fps
+        if not self._progress_refresh_timer.isActive():
+            self._progress_refresh_timer.start()
+
+    def _flush_progress_updates(self):
+        if self._pending_progress is not None:
+            completed, total, path = self._pending_progress
+            self._progress_panel.set_progress(completed, total)
+            self._progress_panel.set_current_file(path)
+        if self._pending_speed is not None:
+            self._progress_panel.set_speed(self._pending_speed)
+        self._pending_progress = None
+        self._pending_speed = None
 
     def _on_file_done(self, path: str, digest: str, error: str):
         rel_path = path
@@ -371,28 +444,80 @@ class Step2Hashes(QWidget):
                 pass
 
         if error:
-            self._set_entry_result(rel_path, "", "error")
+            row = self._set_entry_result(rel_path, "", "error", refresh=not self._is_running)
             self._progress_panel.log_warning(f"{rel_path}: {error}")
         else:
-            self._set_entry_result(rel_path, digest, "ok")
+            row = self._set_entry_result(rel_path, digest, "ok", refresh=not self._is_running)
+
+        if self._is_running and row >= 0:
+            if not self._manifest_refresh_timer.isActive():
+                self._refresh_manifest_line(row)
+            else:
+                self._pending_manifest_rows.add(row)
+            if not self._manifest_refresh_timer.isActive():
+                self._manifest_refresh_timer.start()
+
+    def _on_files_done(self, results: list[tuple[str, str, str]]):
+        if not self._is_running:
+            return
+
+        for path, digest, error in results:
+            row = self._row_for_worker_path(path)
+            if row is None:
+                row = self._set_entry_result(
+                    self._relative_path(path),
+                    digest,
+                    "error" if error else "ok",
+                    refresh=False,
+                )
+            else:
+                self._update_row_result(row, digest, "error" if error else "ok")
+            if row >= 0:
+                self._pending_manifest_rows.add(row)
+
+        if self._pending_manifest_rows and not self._manifest_refresh_timer.isActive():
+            self._manifest_refresh_timer.start()
 
     def _on_finished(self, results: list):
         self._is_running = False
-        self._worker = None
-        self._start_btn.setEnabled(True)
-        self._pause_btn.setEnabled(False)
+        self._manifest_refresh_timer.stop()
+        self._progress_refresh_timer.stop()
+        self._flush_progress_updates()
+        self._pending_manifest_rows.clear()
+        self._worker_rows.clear()
 
         ok_count = sum(1 for e in self._checksum_entries if e["status"] == "ok")
         err_count = sum(1 for e in self._checksum_entries if e["status"] == "error")
-        self._progress_panel.log_success(f"完成: {ok_count:,} 文件已哈希, {err_count} 错误")
         self._update_manifest()
 
         from builder.ui.widgets.toast import show_toast
-        show_toast(self, f"哈希计算完成: {ok_count:,} 文件已计算", level="success")
+        if self._cancel_requested:
+            self._progress_panel.log_warning(
+                f"已停止: {ok_count:,} 文件已哈希, {err_count} 错误"
+            )
+            show_toast(
+                self,
+                f"哈希计算已停止: {ok_count:,} 文件已计算",
+                level="info",
+            )
+        else:
+            self._progress_panel.log_success(
+                f"完成: {ok_count:,} 文件已哈希, {err_count} 错误"
+            )
+            show_toast(
+                self,
+                f"哈希计算完成: {ok_count:,} 文件已计算",
+                level="success",
+            )
+            out = self._out_path.text().strip()
+            if out and ok_count > 0:
+                self._save_checksum()
 
-        out = self._out_path.text().strip()
-        if out and ok_count > 0:
-            self._save_checksum()
+    def _on_worker_finished(self):
+        self._worker = None
+        self._start_btn.setEnabled(True)
+        self._pause_btn.setEnabled(False)
+        self._stop_btn.setEnabled(False)
 
     def _on_error(self, msg: str):
         self._progress_panel.log_error(msg)
@@ -404,14 +529,21 @@ class Step2Hashes(QWidget):
         self._manifest.setPlainText("\n".join(lines) if lines else "暂无数据 — 请点击「开始计算」")
         self._sync_entry_rows()
 
-    def _set_entry_result(self, path: str, digest: str, status: str):
+    def _set_entry_result(
+        self,
+        path: str,
+        digest: str,
+        status: str,
+        refresh: bool = True,
+    ) -> int:
         key = self._normalized_path(path)
         row = self._entry_rows.get(key)
         if row is not None:
             entry = self._checksum_entries[row]
             entry["hash"] = digest
             entry["status"] = status
-            self._refresh_manifest_line(row)
+            if refresh:
+                self._refresh_manifest_line(row)
         else:
             row = len(self._checksum_entries)
             self._checksum_entries.append({
@@ -420,7 +552,18 @@ class Step2Hashes(QWidget):
                 "status": status,
             })
             self._entry_rows[key] = row
-            self._manifest.appendPlainText(self._manifest_line(self._checksum_entries[row]))
+            if refresh:
+                self._manifest.appendPlainText(self._manifest_line(self._checksum_entries[row]))
+        return row
+
+    def _flush_manifest_updates(self):
+        if not self._pending_manifest_rows:
+            return
+
+        rows = sorted(self._pending_manifest_rows)
+        self._pending_manifest_rows.clear()
+        for row in rows:
+            self._refresh_manifest_line(row)
 
     @staticmethod
     def _manifest_line(entry: dict) -> str:
@@ -449,6 +592,33 @@ class Step2Hashes(QWidget):
     def _normalized_path(self, path: str) -> str:
         full_path = path if os.path.isabs(path) else os.path.join(self._project.base_directory, path)
         return os.path.normcase(os.path.abspath(full_path))
+
+    def _row_for_worker_path(self, path: str) -> int | None:
+        row = self._worker_rows.get(path)
+        if row is not None:
+            return row
+        if os.path.isabs(path):
+            key = os.path.normcase(os.path.normpath(path))
+        else:
+            key = self._normalized_path(path)
+        row = self._entry_rows.get(key)
+        return None if row is None else row
+
+    def _relative_path(self, path: str) -> str:
+        base = self._project.base_directory
+        if not base:
+            return path
+        try:
+            return os.path.relpath(path, base)
+        except ValueError:
+            return path
+
+    def _update_row_result(self, row: int, digest: str, status: str):
+        if row < 0 or row >= len(self._checksum_entries):
+            return
+        entry = self._checksum_entries[row]
+        entry["hash"] = digest
+        entry["status"] = status
 
     def _save_checksum(self):
         out = self._out_path.text().strip()
@@ -485,7 +655,10 @@ class Step2Hashes(QWidget):
                 data = f.read()
 
             payload = create_signed_payload(
-                {"checksum_data": data.hex(), "file": os.path.basename(checksum_path)},
+                {
+                    "checksum_data_b64": base64.b64encode(data).decode("ascii"),
+                    "file": os.path.basename(checksum_path),
+                },
                 private_key_pem,
                 self._sig_combo.currentText(),
             )

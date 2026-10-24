@@ -4,12 +4,15 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QFileDialog, QCheckBox, QRadioButton, QButtonGroup, QComboBox,
     QMessageBox, QFrame, QScrollArea, QPlainTextEdit, QInputDialog,
+    QSpinBox,
 )
 from shared.project import ProjectData
+from shared.file_rules import FileRules
 from shared.constants import (
     SPACING_MD, SPACING_LG, SPACING_SM,
-    FONT_BODY_SIZE, SUCCESS_GREEN, ERROR_RED,
+    FONT_BODY_SIZE,
 )
+from shared.theme import get_palette
 from builder.ui.widgets.card_widget import CardWidget
 from builder.ui.workers.verify_worker import VerifyWorker
 from builder.ui.workers.pack_worker import PackWorker
@@ -103,6 +106,7 @@ class Step3Pack(QWidget):
 
         self._pack_btn = QPushButton("← 打包生成验证器")
         self._pack_btn.setEnabled(False)
+        self._pack_btn.setAccessibleName("打包生成验证器")
         self._pack_btn.setToolTip(
             "将验证器打包为独立 EXE。\n"
             "⚠ 必须先通过模拟验证才能启用此按钮。\n"
@@ -130,6 +134,7 @@ class Step3Pack(QWidget):
         row.addWidget(lab)
         self._title_edit = QLineEdit("文件完整性验证器")
         self._title_edit.setToolTip("显示在验证器窗口标题栏的名称")
+        self._title_edit.setAccessibleName("验证器窗口标题")
         row.addWidget(self._title_edit, 1)
         layout.addLayout(row)
 
@@ -140,6 +145,7 @@ class Step3Pack(QWidget):
         self._icon_edit = QLineEdit()
         self._icon_edit.setPlaceholderText("图标文件路径（可选）...")
         self._icon_edit.setToolTip(".ico 格式的图标文件路径")
+        self._icon_edit.setAccessibleName("验证器图标文件路径")
         row2.addWidget(self._icon_edit, 1)
         icon_btn = QPushButton("浏览...")
         icon_btn.clicked.connect(lambda: self._browse_file(self._icon_edit, "图标", "*.ico;;*.*"))
@@ -151,6 +157,7 @@ class Step3Pack(QWidget):
         lab3.setToolTip("验证器的版本号，显示在标题栏")
         row3.addWidget(lab3)
         self._ver_edit = QLineEdit("1.0.0.0")
+        self._ver_edit.setAccessibleName("验证器版本号")
         row3.addWidget(self._ver_edit, 1)
         layout.addLayout(row3)
 
@@ -160,6 +167,7 @@ class Step3Pack(QWidget):
         row4.addWidget(lab4)
         self._company_edit = QLineEdit()
         self._company_edit.setPlaceholderText("公司名称（可选）")
+        self._company_edit.setAccessibleName("公司名称")
         row4.addWidget(self._company_edit, 1)
         layout.addLayout(row4)
 
@@ -169,6 +177,7 @@ class Step3Pack(QWidget):
         row5.addWidget(lab5)
         self._copyright_edit = QLineEdit()
         self._copyright_edit.setPlaceholderText("版权声明（可选）")
+        self._copyright_edit.setAccessibleName("版权信息")
         row5.addWidget(self._copyright_edit, 1)
         layout.addLayout(row5)
 
@@ -222,6 +231,53 @@ class Step3Pack(QWidget):
         self._sig_cb.setToolTip("验证器启动时使用公钥验证校验数据的签名，确保数据未被篡改")
         layout.addWidget(self._sig_cb)
 
+        self._fitrec_cb = QCheckBox("生成可选 .fitrec 恢复文件")
+        self._fitrec_cb.setToolTip("生成独立的 RS 纠错文件；私钥不会嵌入验证器")
+        self._fitrec_cb.setAccessibleName("生成可选恢复文件")
+        layout.addWidget(self._fitrec_cb)
+
+        fitrec_key_row = QHBoxLayout()
+        fitrec_key_label = QLabel("Ed25519 私钥:")
+        fitrec_key_label.setToolTip("用于签名 .fitrec 的独立密钥")
+        fitrec_key_row.addWidget(fitrec_key_label)
+        self._fitrec_key_edit = QLineEdit()
+        self._fitrec_key_edit.setPlaceholderText("选择或生成私钥...")
+        self._fitrec_key_edit.setAccessibleName("恢复文件私钥路径")
+        fitrec_key_row.addWidget(self._fitrec_key_edit, 1)
+        fitrec_key_btn = QPushButton("浏览...")
+        fitrec_key_btn.setProperty("cssClass", "secondary")
+        fitrec_key_btn.setAccessibleName("浏览恢复文件私钥")
+        fitrec_key_btn.clicked.connect(self._browse_fitrec_key)
+        fitrec_key_row.addWidget(fitrec_key_btn)
+        fitrec_generate_btn = QPushButton("生成密钥...")
+        fitrec_generate_btn.setProperty("cssClass", "secondary")
+        fitrec_generate_btn.setAccessibleName("生成恢复文件密钥")
+        fitrec_generate_btn.clicked.connect(self._generate_fitrec_key)
+        fitrec_key_row.addWidget(fitrec_generate_btn)
+        layout.addLayout(fitrec_key_row)
+
+        shard_row = QHBoxLayout()
+        data_label = QLabel("数据分片:")
+        data_label.setToolTip("RS 编码的数据分片数")
+        shard_row.addWidget(data_label)
+        self._fitrec_data_spin = QSpinBox()
+        self._fitrec_data_spin.setRange(1, 254)
+        self._fitrec_data_spin.setValue(8)
+        self._fitrec_data_spin.setAccessibleName("恢复文件数据分片数")
+        shard_row.addWidget(self._fitrec_data_spin)
+        parity_label = QLabel("纠错分片:")
+        parity_label.setToolTip("RS 编码的纠错分片数")
+        shard_row.addWidget(parity_label)
+        self._fitrec_parity_spin = QSpinBox()
+        self._fitrec_parity_spin.setRange(1, 254)
+        self._fitrec_parity_spin.setValue(4)
+        self._fitrec_parity_spin.setAccessibleName("恢复文件纠错分片数")
+        shard_row.addWidget(self._fitrec_parity_spin)
+        shard_row.addStretch()
+        layout.addLayout(shard_row)
+        self._fitrec_data_spin.valueChanged.connect(self._update_fitrec_shard_limits)
+        self._fitrec_parity_spin.valueChanged.connect(self._update_fitrec_shard_limits)
+
         self._antidebug_cb = QCheckBox("启用反调试保护")
         self._antidebug_cb.setToolTip("检测调试器附着，使用加权评分系统，不会误伤合法用户")
         layout.addWidget(self._antidebug_cb)
@@ -270,21 +326,34 @@ class Step3Pack(QWidget):
     def _on_checklist_changed(self, name: str):
         if not name:
             return
-        self._project.verifier_active_checklist = name
+        p = self._project
+        previous = p.verifier_active_checklist
+        if previous and previous != name and previous in p.verifier_checklists:
+            # Keep the working copy with the checklist it was edited in.
+            p.verifier_checklists[previous] = p.checksum_entries
+        p.verifier_active_checklist = name
+        p.verifier_checklists.setdefault(name, [])
+        # The working copy must mirror the active checklist, otherwise the
+        # simulation and the packed verifier can validate different lists.
+        p.checksum_entries = [dict(e) for e in p.verifier_checklists[name]]
+        self._sim_passed = False
+        self._pack_btn.setEnabled(False)
         self._update_checklist_info()
 
     def _update_checklist_info(self):
         name = self._checklist_combo.currentText()
         if not name:
             return
-        checklists = self._project.verifier_checklists
-        entries = checklists.get(name, [])
+        p = self._project
+        if name == p.verifier_active_checklist:
+            entries = p.checksum_entries
+        else:
+            entries = p.verifier_checklists.get(name, [])
         n = len(entries)
-        has_entries = self._project.checksum_entries and len(self._project.checksum_entries) > 0
-        ok_count = sum(1 for e in entries if e.get("status") == "ok") if entries else 0
+        ok_count = sum(1 for e in entries if e.get("status") == "ok")
         if ok_count > 0:
             self._cl_info.setText(f"文件数: {n} | 状态: 已就绪 ({ok_count} 已计算)")
-        elif has_entries:
+        elif entries:
             self._cl_info.setText(f"文件数: {n} | 状态: 待生成")
         else:
             self._cl_info.setText(f"文件数: {n} | 状态: 未就绪")
@@ -302,7 +371,13 @@ class Step3Pack(QWidget):
         from builder.ui.widgets.dialogs import ChecklistEditDialog
         dlg = ChecklistEditDialog(entries, self)
         if dlg.exec():
-            self._project.checksum_entries = dlg.get_entries()
+            p = self._project
+            p.checksum_entries = dlg.get_entries()
+            name = self._checklist_combo.currentText()
+            if name:
+                p.verifier_checklists[name] = p.checksum_entries
+            self._sim_passed = False
+            self._pack_btn.setEnabled(False)
             self._update_checklist_info()
             QMessageBox.information(self, "已保存", "校验清单已更新。")
 
@@ -336,11 +411,15 @@ class Step3Pack(QWidget):
         )
         if reply != QMessageBox.StandardButton.Yes:
             return
+        # Clear the active name before removing the combo entry so the change
+        # handler cannot write the entries back into the deleted checklist.
         self._project.verifier_checklists.pop(name, None)
+        self._project.verifier_active_checklist = ""
         idx = self._checklist_combo.findText(name)
         if idx >= 0:
             self._checklist_combo.removeItem(idx)
-        self._project.verifier_active_checklist = self._checklist_combo.currentText()
+        if not self._project.verifier_active_checklist:
+            self._project.verifier_active_checklist = self._checklist_combo.currentText()
 
     def _setup_simulation_card(self):
         cw = self._sim_card.content_widget()
@@ -430,6 +509,14 @@ class Step3Pack(QWidget):
         p.verifier_enable_signature_verify = self._sig_cb.isChecked()
         p.verifier_enable_antidebug = self._antidebug_cb.isChecked()
         p.verifier_enable_antisanbox = self._antisanbox_cb.isChecked()
+        p.generate_fitrec = self._fitrec_cb.isChecked()
+        p.fitrec_private_key_path = self._fitrec_key_edit.text().strip()
+        p.fitrec_data_shards = self._fitrec_data_spin.value()
+        p.fitrec_parity_shards = self._fitrec_parity_spin.value()
+
+    def _update_fitrec_shard_limits(self):
+        self._fitrec_data_spin.setMaximum(255 - self._fitrec_parity_spin.value())
+        self._fitrec_parity_spin.setMaximum(255 - self._fitrec_data_spin.value())
 
         active = self._checklist_combo.currentText()
         if active:
@@ -447,6 +534,11 @@ class Step3Pack(QWidget):
         self._sig_cb.setChecked(p.verifier_enable_signature_verify)
         self._antidebug_cb.setChecked(p.verifier_enable_antidebug)
         self._antisanbox_cb.setChecked(p.verifier_enable_antisanbox)
+        self._fitrec_cb.setChecked(p.generate_fitrec)
+        self._fitrec_key_edit.setText(p.fitrec_private_key_path)
+        self._fitrec_data_spin.setValue(p.fitrec_data_shards)
+        self._fitrec_parity_spin.setValue(p.fitrec_parity_shards)
+        self._update_fitrec_shard_limits()
 
         self._checklist_combo.blockSignals(True)
         self._checklist_combo.clear()
@@ -461,12 +553,35 @@ class Step3Pack(QWidget):
         if idx >= 0:
             self._checklist_combo.setCurrentIndex(idx)
         self._checklist_combo.blockSignals(False)
+
+        # Keep the combo, the active name and the working copy in agreement.
+        active_name = self._checklist_combo.currentText()
+        if active_name:
+            p.verifier_active_checklist = active_name
+            stored = p.verifier_checklists.setdefault(active_name, [])
+            if not p.checksum_entries and stored:
+                p.checksum_entries = [dict(e) for e in stored]
+            elif p.checksum_entries and not stored:
+                p.verifier_checklists[active_name] = p.checksum_entries
+        self._sim_passed = False
+        self._pack_btn.setEnabled(False)
         self._update_checklist_info()
 
         if not self._sim_path.text().strip() and p.base_directory:
             self._sim_path.setText(p.base_directory)
 
+    def set_project(self, project: ProjectData):
+        """Rebind to a freshly created or loaded project."""
+        self._project = project
+        self._verify_worker = None
+        self._sim_passed = False
+        self._pack_btn.setEnabled(False)
+        self.refresh_from_project()
+
     def _run_simulation(self):
+        # Persist the checklist selection before validating so the simulated
+        # data and the packed data always come from the same list.
+        self.sync_to_project()
         target = self._sim_path.text().strip()
         if not target or not os.path.isdir(target):
             QMessageBox.warning(self, "路径无效", "请选择用于模拟验证的有效目录。")
@@ -482,14 +597,18 @@ class Step3Pack(QWidget):
             )
             return
 
+        self._sim_passed = False
+        self._pack_btn.setEnabled(False)
         self._sim_run_btn.setEnabled(False)
         self._sim_status.setText("正在模拟验证...")
         self._sim_status.setProperty("cssClass", "hint")
 
         self._verify_worker = VerifyWorker(
-            ok_entries, target, self._project.checksum_algorithm
+            ok_entries, target, self._project.checksum_algorithm,
+            exclude_rules=FileRules.from_project(self._project),
+            ignored_paths=self._project.exclude_paths,
         )
-        self._verify_worker.finished.connect(self._on_sim_finished)
+        self._verify_worker.completed.connect(self._on_sim_finished)
         self._verify_worker.error_occurred.connect(self._on_sim_error)
         self._verify_worker.start()
 
@@ -500,14 +619,18 @@ class Step3Pack(QWidget):
         missing = report["missing"]
         extra = report.get("extra_count", 0)
         total = report["total"]
-        all_pass = (failed == 0 and missing == 0)
+        # Files on disk that are not in the manifest are a real mismatch: the
+        # target folder must match the checklist exactly before packing.
+        all_pass = (failed == 0 and missing == 0 and extra == 0)
 
         if all_pass:
             self._sim_passed = True
             self._pack_btn.setEnabled(True)
             self._sim_status.setText(f"✓ 验证通过 — {passed:,} / {total:,} 文件一致")
+            pal = get_palette()
             self._sim_status.setStyleSheet(
-                f"font-size: {FONT_BODY_SIZE}px; font-weight: 700; color: {SUCCESS_GREEN};"
+                f"font-size: {FONT_BODY_SIZE}px; font-weight: 600; color: {pal['success']};"
+                f"background-color: {pal['success_bg']}; padding: 4px 8px; border-radius: 4px;"
             )
             from builder.ui.widgets.toast import show_toast
             show_toast(self, "模拟验证通过", level="success")
@@ -517,24 +640,33 @@ class Step3Pack(QWidget):
             self._sim_status.setText(
                 f"✗ 存在问题 — 通过:{passed} 失败:{failed} 缺失:{missing} 多余:{extra}"
             )
+            pal = get_palette()
             self._sim_status.setStyleSheet(
-                f"font-size: {FONT_BODY_SIZE}px; font-weight: 700; color: {ERROR_RED};"
+                f"font-size: {FONT_BODY_SIZE}px; font-weight: 600; color: {pal['danger']};"
+                f"background-color: {pal['danger_bg']}; padding: 4px 8px; border-radius: 4px;"
             )
 
         lines = [f"总计条目: {total}"]
         lines.append(f"通过: {passed}  |  失败: {failed}  |  缺失: {missing}  |  多余: {extra}")
-        if failed > 0 or missing > 0:
+        if failed > 0 or missing > 0 or extra > 0:
             lines.append("")
             lines.append("异常详情:")
             for d in report["details"]:
-                if d["status"] in ("fail", "missing"):
+                if d["status"] in ("fail", "missing", "extra"):
                     lines.append(f"  [{d['status'].upper()}] {d['path']}")
+        if extra > 0:
+            lines.append("")
+            lines.append("提示: 多余文件不在清单内；请确认扫描时未被过滤规则排除。")
         self._sim_detail.setPlainText("\n".join(lines))
 
     def _on_sim_error(self, msg: str):
         self._sim_run_btn.setEnabled(True)
         self._sim_status.setText(f"错误: {msg}")
-        self._sim_status.setStyleSheet(f"color: {ERROR_RED};")
+        pal = get_palette()
+        self._sim_status.setStyleSheet(
+            f"color: {pal['danger']}; background-color: {pal['danger_bg']};"
+            "padding: 4px 8px; border-radius: 4px;"
+        )
 
     def _external_test(self):
         from builder.ui.widgets.dialogs import ExternalTestDialog
@@ -549,13 +681,55 @@ class Step3Pack(QWidget):
             try:
                 checksum_entries, detected_algorithm = load_checksum_entries(cs_path)
                 self._sim_path.setText(target_dir)
-                self._project.checksum_entries = checksum_entries
-                self._project.checksum_algorithm = detected_algorithm
+                p = self._project
+                p.checksum_entries = checksum_entries
+                p.checksum_algorithm = detected_algorithm
+                active = self._checklist_combo.currentText()
+                if active:
+                    p.verifier_active_checklist = active
+                    p.verifier_checklists[active] = p.checksum_entries
+                self._sim_passed = False
+                self._pack_btn.setEnabled(False)
+                self._update_checklist_info()
                 self._run_simulation()
             except Exception as e:
                 QMessageBox.critical(self, "错误", f"加载校验文件失败:\n{e}")
 
+    def _browse_fitrec_key(self):
+        path, _ = QFileDialog.getSaveFileName(
+            self, "选择恢复文件私钥", "", "Ed25519 密钥 (*.key);;所有文件 (*)"
+        )
+        if path:
+            self._fitrec_key_edit.setText(path)
+
+    def _generate_fitrec_key(self):
+        suggested = self._fitrec_key_edit.text().strip()
+        if not suggested and self._project.project_file_path:
+            suggested = os.path.join(
+                os.path.dirname(self._project.project_file_path), "fitrec.key"
+            )
+        path, _ = QFileDialog.getSaveFileName(
+            self, "生成恢复文件私钥", suggested, "Ed25519 密钥 (*.key);;所有文件 (*)"
+        )
+        if not path:
+            return
+
+        from shared.fitrec_bridge import run_fitrec_keygen
+        try:
+            private_path, _public_path = run_fitrec_keygen(path, path + ".pub")
+        except Exception as exc:
+            QMessageBox.critical(self, "密钥生成失败", str(exc))
+            return
+        self._fitrec_key_edit.setText(str(private_path))
+        self.sync_to_project()
+
     def _do_pack(self):
+        if not self._sim_passed:
+            QMessageBox.warning(
+                self, "尚未通过预检",
+                "请先运行模拟验证，确认清单与目标目录完全一致后再打包。"
+            )
+            return
         from builder.ui.widgets.dialogs import PackOptionsDialog
         dlg = PackOptionsDialog(self)
         if not dlg.exec():
@@ -575,8 +749,13 @@ class Step3Pack(QWidget):
             return
 
         project_dict = {
+            "base_directory": p.base_directory,
             "checksum_entries": p.checksum_entries,
             "checksum_algorithm": p.checksum_algorithm,
+            # Ignore rules travel with the verifier so files the Builder
+            # deliberately skipped are not reported as extra on the client.
+            "exclude_rules": FileRules.from_project(p).to_config(),
+            "exclude_paths": list(p.exclude_paths),
             "output_path": vals.get("output_path", os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "output")),
             "verifier_title": p.verifier_title or "文件完整性验证器",
             "verifier_version": p.verifier_version or "1.0.0.0",
@@ -588,33 +767,32 @@ class Step3Pack(QWidget):
             "verifier_enable_signature_verify": p.verifier_enable_signature_verify,
             "verifier_enable_antidebug": p.verifier_enable_antidebug,
             "verifier_enable_antisanbox": p.verifier_enable_antisanbox,
+            "generate_fitrec": p.generate_fitrec,
+            "fitrec_private_key_path": p.fitrec_private_key_path,
+            "fitrec_data_shards": p.fitrec_data_shards,
+            "fitrec_parity_shards": p.fitrec_parity_shards,
             "verifier_checklists": p.verifier_checklists,
             "verifier_active_checklist": p.verifier_active_checklist,
             "run_after": vals.get("run_after", False),
         }
 
         main_project = getattr(self.window(), "project", None)
-        if main_project and main_project.private_key_path:
-            private_key_path = main_project.private_key_path
-            if os.path.isfile(private_key_path):
-                from shared.crypto import load_rsa_private, load_ecdsa_private
-                try:
-                    with open(private_key_path, "rb") as f:
-                        pem_data = f.read()
-                    sig_algo = main_project.signature_algorithm
-                    if sig_algo == "ECDSA":
-                        key_obj = load_ecdsa_private(pem_data)
-                    else:
-                        key_obj = load_rsa_private(pem_data)
-                    from cryptography.hazmat.primitives import serialization
-                    pub_pem = key_obj.public_key().public_bytes(
-                        encoding=serialization.Encoding.PEM,
-                        format=serialization.PublicFormat.SubjectPublicKeyInfo,
-                    ).decode("utf-8")
-                    project_dict["public_key_pem"] = pub_pem
-                    project_dict["signature_algorithm"] = sig_algo
-                except Exception:
-                    pass
+        signing_key = self._prepare_signing_key(main_project)
+        if signing_key is None:
+            return
+        if signing_key:
+            public_pem, private_pem, signature_algorithm = signing_key
+            project_dict["public_key_pem"] = public_pem
+            project_dict["private_key_pem"] = private_pem
+            project_dict["signature_algorithm"] = signature_algorithm
+
+        if p.generate_fitrec:
+            from shared.fitrec_bridge import validate_fitrec_key_path
+            try:
+                validate_fitrec_key_path(p.fitrec_private_key_path)
+            except Exception as exc:
+                QMessageBox.warning(self, "恢复文件私钥无效", str(exc))
+                return
 
         self._build_progress.setVisible(True)
         self._build_progress.setValue(0)
@@ -626,9 +804,49 @@ class Step3Pack(QWidget):
 
         self._pack_worker = PackWorker(project_dict)
         self._pack_worker.progress.connect(self._on_build_progress)
-        self._pack_worker.finished.connect(self._on_build_finished)
+        self._pack_worker.completed.connect(self._on_build_finished)
         self._pack_worker.error_occurred.connect(self._on_build_error)
         self._pack_worker.start()
+
+    def _prepare_signing_key(self, main_project: ProjectData | None):
+        """Load a configured key, or return None after reporting a failure."""
+        if not main_project or not main_project.private_key_path:
+            return None
+        if not self._project.verifier_enable_signature_verify:
+            return None
+
+        private_key_path = main_project.private_key_path
+        if not os.path.isfile(private_key_path):
+            QMessageBox.warning(
+                self,
+                "私钥文件不存在",
+                f"找不到私钥文件:\n{private_key_path}\n\n"
+                "已启用签名验证，因此打包已停止。请更新私钥路径后重试。",
+            )
+            return None
+
+        from shared.crypto import load_rsa_private, load_ecdsa_private
+        try:
+            with open(private_key_path, "rb") as handle:
+                pem_data = handle.read()
+            signature_algorithm = main_project.signature_algorithm
+            if signature_algorithm == "ECDSA":
+                key_obj = load_ecdsa_private(pem_data)
+            else:
+                key_obj = load_rsa_private(pem_data)
+            from cryptography.hazmat.primitives import serialization
+            public_pem = key_obj.public_key().public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo,
+            ).decode("utf-8")
+            return public_pem, pem_data.decode("utf-8"), signature_algorithm
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "私钥加载失败",
+                f"无法读取签名私钥:\n{private_key_path}\n\n{exc}",
+            )
+            return None
 
     def _on_build_progress(self, pct: int, status: str):
         self._build_progress.setValue(pct)
@@ -637,8 +855,10 @@ class Step3Pack(QWidget):
     def _on_build_finished(self, output_path: str):
         self._build_progress.setValue(100)
         self._build_status.setText(f"打包完成! 输出: {output_path}")
+        pal = get_palette()
         self._build_status.setStyleSheet(
-            f"font-size: {FONT_BODY_SIZE}px; font-weight: 700; color: {SUCCESS_GREEN};"
+            f"font-size: {FONT_BODY_SIZE}px; font-weight: 600; color: {pal['success']};"
+            f"background-color: {pal['success_bg']}; padding: 4px 8px; border-radius: 4px;"
         )
         self._pack_btn.setEnabled(True)
         if self._run_after_build and os.path.isfile(output_path):
@@ -654,8 +874,10 @@ class Step3Pack(QWidget):
     def _on_build_error(self, msg: str):
         self._build_progress.setValue(0)
         self._build_status.setText(f"打包失败: {msg}")
+        pal = get_palette()
         self._build_status.setStyleSheet(
-            f"font-size: {FONT_BODY_SIZE}px; font-weight: 700; color: {ERROR_RED};"
+            f"font-size: {FONT_BODY_SIZE}px; font-weight: 600; color: {pal['danger']};"
+            f"background-color: {pal['danger_bg']}; padding: 4px 8px; border-radius: 4px;"
         )
         self._pack_btn.setEnabled(True)
         QMessageBox.critical(self, "打包失败", f"验证器打包过程中出现错误:\n\n{msg}")
