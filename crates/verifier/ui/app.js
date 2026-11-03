@@ -183,21 +183,16 @@ document.querySelector("#inspectRecovery").addEventListener("click", async () =>
 });
 
 const startRecoveryButton = document.querySelector("#startRecovery");
+const quickRecoveryButton = document.querySelector("#quickRecovery");
 const stopRecoveryButton = document.querySelector("#stopRecovery");
 
-startRecoveryButton.addEventListener("click", async () => {
-  startRecoveryButton.disabled = true;
-  stopRecoveryButton.disabled = false;
+async function runRecovery(args) {
+  setRecoveryBusy(true);
   recoveryResultsBody.replaceChildren();
   setRecoveryProgress(0, "准备恢复...");
   try {
     const report = await invoke("recover_files", {
-      args: {
-        recoveryPath: recoveryPath.value,
-        targetPath: recoveryTargetPath.value,
-        outputPath: recoveryOutputPath.value,
-        publicKeyPath: publicKeyPath.value,
-      },
+      args,
     });
     renderRecoveryReport(report);
     setRecoveryProgress(
@@ -210,10 +205,74 @@ startRecoveryButton.addEventListener("click", async () => {
     renderRecoveryError(String(error));
     setRecoveryProgress(0, "恢复失败");
   } finally {
-    startRecoveryButton.disabled = false;
-    stopRecoveryButton.disabled = true;
+    setRecoveryBusy(false);
+  }
+  return report;
+}
+
+startRecoveryButton.addEventListener("click", () => {
+  runRecovery({
+    recoveryPath: recoveryPath.value,
+    targetPath: recoveryTargetPath.value,
+    outputPath: recoveryOutputPath.value,
+    publicKeyPath: publicKeyPath.value,
+  });
+});
+
+quickRecoveryButton.addEventListener("click", async () => {
+  try {
+    const bundle = await invoke("discover_record_bundle");
+    if (!bundle) {
+      throw new Error("未找到 .fit-support 发布包");
+    }
+    if (!bundle.recoveryPath) {
+      throw new Error("当前发布包没有恢复档案（.fitrec.parity）");
+    }
+
+    recordPath.value = bundle.recordPath;
+    publicKeyPath.value = bundle.publicKeyPath;
+    recoveryPath.value = bundle.recoveryPath;
+    recoveryTargetPath.value = bundle.rootPath;
+    const output = `${bundle.rootPath.replace(/[\\/]+$/, "")}/.fit-support/recovered-${recoveryTimestamp()}`;
+    recoveryOutputPath.value = output;
+    sourceStatus.textContent = "已定位 .fit-support 恢复档案";
+    const report = await runRecovery({
+      recoveryPath: recoveryPath.value,
+      targetPath: recoveryTargetPath.value,
+      outputPath,
+      publicKeyPath: publicKeyPath.value,
+    });
+    if (report) {
+      const problems = report.failed || report.missing
+        ? `缺失 ${report.missing} 个，失败 ${report.failed} 个；`
+        : "";
+      setRecoveryProgress(100, `修复完成；${problems}输出目录：${output}`);
+    }
+  } catch (error) {
+    renderRecoveryError(String(error));
+    setRecoveryProgress(0, "一键修复失败");
   }
 });
+
+function setRecoveryBusy(busy) {
+  quickRecoveryButton.disabled = busy;
+  startRecoveryButton.disabled = busy;
+  stopRecoveryButton.disabled = !busy;
+}
+
+function recoveryTimestamp() {
+  const now = new Date();
+  const value = (number, length = 2) => String(number).padStart(length, "0");
+  return [
+    value(now.getFullYear(), 4),
+    value(now.getMonth() + 1),
+    value(now.getDate()),
+    value(now.getHours()),
+    value(now.getMinutes()),
+    value(now.getSeconds()),
+    value(now.getMilliseconds(), 3),
+  ].join("");
+}
 
 stopRecoveryButton.addEventListener("click", () => {
   invoke("cancel_recovery");

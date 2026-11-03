@@ -103,31 +103,46 @@
           <p>从 .fitrec.parity 档案重建损坏或缺失的目标文件。</p>
         </div>
 
-        <section class="panel controls recovery-controls">
-          <label>
-            <span>恢复档案</span>
-            <input id="recoveryPath" type="text" autocomplete="off" spellcheck="false" />
-          </label>
-          <button id="browseRecovery" class="ghost">浏览...</button>
-
-          <label>
-            <span>目标目录</span>
-            <input id="recoveryTargetPath" type="text" autocomplete="off" spellcheck="false" />
-          </label>
-          <button id="browseRecoveryTarget" class="ghost">浏览...</button>
-
-          <label>
-            <span>恢复输出目录</span>
-            <input id="recoveryOutputPath" type="text" autocomplete="off" spellcheck="false" />
-          </label>
-          <button id="browseRecoveryOutput" class="ghost">浏览...</button>
-
+        <section class="panel recovery-quick">
+          <div class="quick-copy">
+            <h3>一键修复</h3>
+            <p>自动读取发布包的 <code>.fit-support</code>；重建文件写入独立时间戳目录，不会覆盖原文件。</p>
+          </div>
           <div class="button-group">
-            <button id="inspectRecovery" class="ghost">读取档案</button>
-            <button id="startRecovery" class="primary">恢复文件</button>
+            <button id="quickRecovery" class="primary">一键修复</button>
             <button id="stopRecovery" class="ghost">停止</button>
           </div>
         </section>
+
+        <details id="recoveryAdvanced" class="panel advanced-panel">
+          <summary>高级设置</summary>
+          <div class="advanced-body">
+            <section class="recovery-controls">
+              <label>
+                <span>恢复档案</span>
+                <input id="recoveryPath" type="text" autocomplete="off" spellcheck="false" />
+              </label>
+              <button id="browseRecovery" class="ghost">浏览...</button>
+
+              <label>
+                <span>目标目录</span>
+                <input id="recoveryTargetPath" type="text" autocomplete="off" spellcheck="false" />
+              </label>
+              <button id="browseRecoveryTarget" class="ghost">浏览...</button>
+
+              <label>
+                <span>恢复输出目录</span>
+                <input id="recoveryOutputPath" type="text" autocomplete="off" spellcheck="false" />
+              </label>
+              <button id="browseRecoveryOutput" class="ghost">浏览...</button>
+
+              <div class="button-group">
+                <button id="inspectRecovery" class="ghost">读取档案</button>
+                <button id="startRecovery" class="primary">手动恢复</button>
+              </div>
+            </section>
+          </div>
+        </details>
 
         <section class="panel progress-panel">
           <div class="progress"><div id="recoveryProgressBar"></div></div>
@@ -157,7 +172,8 @@
 
         <section class="panel recovery-help">
           <div class="help-body">
-            <p><strong>流程：</strong>顶部公钥用于验证档案；下方选择 <code>.fitrec.parity</code>、受损目标目录和一个不同的输出目录。</p>
+            <p><strong>一键修复：</strong>自动使用 <code>.fit-support</code> 中的恢复档案和公钥；输出目录在 <code>.fit-support/recovered-...</code> 下。</p>
+            <p><strong>高级流程：</strong>展开高级设置后，可手动选择 <code>.fitrec.parity</code>、受损目标目录和输出目录。</p>
             <p><strong>容量：</strong>每个文件按 1 MiB 分片做 Reed-Solomon。例如 8 数据分片 + 4 纠错分片，最多可修复该文件 4 个损坏分片。</p>
             <p><strong>输出规则：</strong>健康文件只记录状态；损坏或缺失文件重建到输出目录，原始目标文件不会被覆写。</p>
             <p><strong>缺失文件：</strong>只有当纠错分片数量不小于数据分片时才能从纯纠错分片重建；默认 8 + 4 无法重建整文件缺失。</p>

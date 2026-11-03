@@ -54,7 +54,7 @@ FIT 不是整盘备份工具；它只保护恢复档案中显式列出的文件�
 - 支持选择校验清单；一键发布后通常无需手动选择。
 - 实时显示通过/失败/缺失/多余计数和详细结果表。
 - 导出 JSON 和 CSV 验证报告。
-- 从 `.fitrec.parity` 恢复损坏或缺失文件。
+- 提供一键修复：自动读取 `.fit-support`，把重建文件写入独立时间戳目录；高级设置仍可手动指定档案、目标和输出路径。
 - 作为独立验证创作工具时，可生成新的 Ed25519 密钥对。
 
 ### 分发
@@ -329,7 +329,7 @@ FIT is not a whole-disk backup tool. It protects files explicitly listed in a re
 - Supports checklist selection; this is usually unnecessary after a one-click release.
 - Shows live passed/failed/missing/extra counters and a detailed result table.
 - Exports JSON and CSV verification reports.
-- Recovers damaged or missing files from `.fitrec.parity` into a separate output directory.
+- Provides one-click repair: it reads `.fit-support` automatically and writes reconstructed files to a timestamped output folder. Advanced settings still allow manual archive, target, and output paths.
 - Generates new Ed25519 key pairs when used as a standalone verification-authoring tool.
 
 ### Distribution
